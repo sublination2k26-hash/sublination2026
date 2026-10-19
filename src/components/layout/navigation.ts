@@ -1,0 +1,13 @@
+export const workspaceNavigation = [
+  { label: "Overview", href: "/dashboard" },
+  { label: "Orders", href: "/orders" },
+  { label: "Production", href: "/dashboard?view=Production" },
+  { label: "Payments", href: "/dashboard?view=Payments" },
+  { label: "Customers", href: "/dashboard?view=Customers" },
+  { label: "Products", href: "/products" },
+  { label: "Employees", href: "/employees" },
+  { label: "Job orders", href: "/dashboard?view=Job%20orders" },
+  { label: "Reports", href: "/dashboard?view=Reports" },
+  { label: "Quality control", href: "/quality-control" },
+  { label: "Settings", href: "/settings" },
+];

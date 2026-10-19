@@ -1,0 +1,2 @@
+-- Intentionally empty before the Supabase integration phase.
+-- Keep demo records in the browser-local prototype until the schema is reviewed and the project is connected.

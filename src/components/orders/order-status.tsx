@@ -1,0 +1,1 @@
+export function OrderStatus({status}:{status:string}){const tone=status.toLowerCase().includes("quality")?"orange":status.toLowerCase()==="released"?"green":"blue";return <span className={`pill ${tone}`}><i/>{status}</span>;}

@@ -1,0 +1,193 @@
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e5ecf7;
+  --muted: #a3afbf;
+  --line: #34445a;
+  --green: #6ea8ff;
+  --bg: #111827;
+}
+
+html[data-theme="dark"] body {
+  background: var(--bg);
+  color: var(--ink);
+}
+
+html[data-theme="dark"] .sidebar,
+html[data-theme="dark"] .panel,
+html[data-theme="dark"] .metric-card,
+html[data-theme="dark"] .standalone-panel,
+html[data-theme="dark"] .modal,
+html[data-theme="dark"] .login-card {
+  background: #182335;
+  border-color: #2b3a4e;
+  color: var(--ink);
+}
+
+html[data-theme="dark"] .sidebar { border-right-color: #2b3a4e; }
+html[data-theme="dark"] .topbar {
+  background: #151f2e;
+  border-bottom-color: #2b3a4e;
+}
+
+html[data-theme="dark"] .brand,
+html[data-theme="dark"] .standalone-title-row h1,
+html[data-theme="dark"] .modal-heading h2,
+html[data-theme="dark"] .employee-manager-heading h2,
+html[data-theme="dark"] .employee-empty b,
+html[data-theme="dark"] .metric-value,
+html[data-theme="dark"] .metric-top,
+html[data-theme="dark"] .lane-head,
+html[data-theme="dark"] .job-card>b,
+html[data-theme="dark"] .detail-facts b,
+html[data-theme="dark"] .summary-line b,
+html[data-theme="dark"] .balance-strip b {
+  color: #e5ecf7;
+}
+
+html[data-theme="dark"] .brand-light,
+html[data-theme="dark"] .breadcrumbs,
+html[data-theme="dark"] .standalone-title-row p,
+html[data-theme="dark"] .page-heading p,
+html[data-theme="dark"] .detail-heading p,
+html[data-theme="dark"] .detail-facts small,
+html[data-theme="dark"] .summary-line span,
+html[data-theme="dark"] .balance-strip,
+html[data-theme="dark"] .standalone-footer {
+  color: #9aa9bc;
+}
+
+html[data-theme="dark"] .shop-switch,
+html[data-theme="dark"] .help-card,
+html[data-theme="dark"] .employee-form,
+html[data-theme="dark"] .employee-form-fields input,
+html[data-theme="dark"] .employee-form-fields select,
+html[data-theme="dark"] .form input,
+html[data-theme="dark"] .form select,
+html[data-theme="dark"] .form textarea,
+html[data-theme="dark"] .notes-label textarea,
+html[data-theme="dark"] .search,
+html[data-theme="dark"] .cancel-button,
+html[data-theme="dark"] .standalone-signout,
+html[data-theme="dark"] .employee-actions button {
+  background: #111b2a;
+  border-color: #34445a;
+  color: #e5ecf7;
+}
+
+html[data-theme="dark"] .nav-item { color: #a3afbf; }
+html[data-theme="dark"] .nav-item > svg { color: #8798ae; }
+html[data-theme="dark"] .nav-item.active,
+html[data-theme="dark"] .employee-status.is-active {
+  background: #203b5e;
+  color: #9bc4ff;
+}
+
+html[data-theme="dark"] .nav-item.active > svg { color: #9bc4ff; }
+html[data-theme="dark"] .nav-count,
+html[data-theme="dark"] .shop-avatar {
+  background: #263a55;
+  color: #c6dcff;
+}
+
+html[data-theme="dark"] .employee-form-fields label,
+html[data-theme="dark"] .form label,
+html[data-theme="dark"] .notes-label,
+html[data-theme="dark"] .employee-form-title,
+html[data-theme="dark"] .standalone-panel h2,
+html[data-theme="dark"] .role-directory-heading h2 {
+  color: #cbd6e5;
+}
+
+html[data-theme="dark"] .employee-table-wrap,
+html[data-theme="dark"] .employee-table-wrap table,
+html[data-theme="dark"] .employee-table-wrap td,
+html[data-theme="dark"] .employee-table-wrap th,
+html[data-theme="dark"] table,
+html[data-theme="dark"] th,
+html[data-theme="dark"] td,
+html[data-theme="dark"] .form-actions,
+html[data-theme="dark"] .profile,
+html[data-theme="dark"] .role-directory,
+html[data-theme="dark"] .role-card {
+  border-color: #2b3a4e;
+}
+
+html[data-theme="dark"] .employee-table-wrap thead th,
+html[data-theme="dark"] thead th {
+  background: #1c2a3e;
+  color: #a9b8cb;
+}
+
+html[data-theme="dark"] tbody tr:hover { background: #1d2b3f; }
+html[data-theme="dark"] .total-preview,
+html[data-theme="dark"] .payment-callout,
+html[data-theme="dark"] .employee-notice,
+html[data-theme="dark"] .toast,
+html[data-theme="dark"] .metric-icon,
+html[data-theme="dark"] .help-icon,
+html[data-theme="dark"] .standalone-empty-icon {
+  background: #20334d;
+  border-color: #344d6b;
+  color: #b8d4ff;
+}
+
+html[data-theme="dark"] .total-preview b,
+html[data-theme="dark"] .payment-callout b { color: #b8d4ff; }
+html[data-theme="dark"] .job-card,
+html[data-theme="dark"] .board-lane,
+html[data-theme="dark"] .qc-panel,
+html[data-theme="dark"] .design-placeholder {
+  background: #1b293b;
+  border-color: #2b3a4e;
+}
+
+html[data-theme="dark"] .board-lane-title span,
+html[data-theme="dark"] .job-card,
+html[data-theme="dark"] .login-card input {
+  background: #111b2a;
+  color: #d8e2ef;
+}
+
+html[data-theme="dark"] .lane-empty,
+html[data-theme="dark"] .empty-inline,
+html[data-theme="dark"] .metric-foot,
+html[data-theme="dark"] .employee-manager-heading p,
+html[data-theme="dark"] .employee-manager-foot,
+html[data-theme="dark"] .standalone-panel p {
+  color: #9aa9bc;
+}
+
+html[data-theme="dark"] .modal-heading,
+html[data-theme="dark"] .balance-strip,
+html[data-theme="dark"] .summary-line,
+html[data-theme="dark"] .checklist,
+html[data-theme="dark"] .table-foot,
+html[data-theme="dark"] .workflow-step > span {
+  border-color: #2b3a4e;
+}
+
+html[data-theme="dark"] .icon-button,
+html[data-theme="dark"] .breadcrumbs b,
+html[data-theme="dark"] .detail-back > span,
+html[data-theme="dark"] .top-actions .standalone-back {
+  color: #b7c5d8;
+}
+
+html[data-theme="dark"] .logout-button:hover { background: #20334d; color: #9bc4ff; }
+html[data-theme="dark"] .task-status-control { color: #cbd6e5; }
+html[data-theme="dark"] .task-status-control select {
+  background: #111b2a;
+  border-color: #34445a;
+  color: #e5ecf7;
+}
+
+html[data-theme="dark"] input::placeholder,
+html[data-theme="dark"] textarea::placeholder { color: #73849b; }
+html[data-theme="dark"] .toast { box-shadow: 0 4px 14px #0005; }
+
+@media (prefers-reduced-motion: no-preference) {
+  html[data-theme="dark"] body,
+  html[data-theme="light"] body {
+    transition: background-color 160ms ease, color 160ms ease;
+  }
+}

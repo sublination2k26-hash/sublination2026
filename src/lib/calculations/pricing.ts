@@ -1,0 +1,2 @@
+export function calculateLineTotal(quantity:number,unitPrice:number){if(quantity<0||unitPrice<0)throw new Error("Quantity and unit price must be non-negative.");return Math.round(quantity*unitPrice*100)/100;}
+export function calculateOrderTotal(lines:{quantity:number;unitPrice:number}[],discount=0){const subtotal=lines.reduce((sum,line)=>sum+calculateLineTotal(line.quantity,line.unitPrice),0);return {subtotal,total:Math.max(0,Math.round((subtotal-discount)*100)/100)};}
