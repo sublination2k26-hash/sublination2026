@@ -21,7 +21,7 @@ export default async function EmployeesPage() {
     ? await supabase.from("profiles").select("role,active").eq("id", user.id).maybeSingle()
     : { data: null };
   if (!profile?.active || profile.role !== "admin") redirect("/dashboard");
-  return <SectionPage area="Employees" title="Employee accounts" description="Admin workspace · Manage staff records and review every system role.">
+  return <SectionPage area="Employees" title="Employee accounts" description="Admin workspace · Manage staff records and review every system role." action={{label:"Open payroll",href:"/payroll"}}>
     <EmployeeManager />
     <div className="role-directory">
       <div className="role-directory-heading"><div><h2>All system roles</h2><p>Role visibility for the admin workspace</p></div><span>{roles.length} roles</span></div>

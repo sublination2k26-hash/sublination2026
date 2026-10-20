@@ -33,6 +33,7 @@ const navigationIcons = {
   Customers: Users,
   Products: Package,
   Employees: Users,
+  Payroll: CircleDollarSign,
   "Job orders": FileText,
   Reports: Activity,
 };
@@ -57,7 +58,7 @@ export async function SectionPage({ title, description, area, action, children }
   const { data: orderRows } = user ? await supabase.from("orders").select("status") : { data: [] };
   const activeOrderCount = (orderRows ?? []).filter(order => order.status !== "released" && order.status !== "cancelled").length;
   const allowedItems = isAdmin
-    ? ["Overview", "Orders", "Production", "Payments", "Customers", "Products", "Employees", "Job orders", "Reports"]
+    ? ["Overview", "Orders", "Production", "Payments", "Customers", "Products", "Employees", "Payroll", "Job orders", "Reports"]
     : profile?.role === "front_desk"
       ? ["Overview", "Orders", "Production", "Payments", "Customers", "Job orders", "Reports"]
       : ["Production", "Job orders"];
@@ -70,9 +71,9 @@ export async function SectionPage({ title, description, area, action, children }
     <aside className="sidebar">
       <Link className="brand" href="/dashboard">
         <span className="brand-icon"><Sparkles size={19}/></span>
-        <span>Sublimation<br/><span className="brand-light">Printing System</span><small>PRODUCTION DESK</small></span>
+        <span>Subli-nation<br/><span className="brand-light">Printing System</span><small>PRODUCTION DESK</small></span>
       </Link>
-      <div className="shop-switch"><span className="shop-avatar">S</span><span className="shop-copy"><b>Shared workspace</b><small>Sublimation Printing System</small></span><ChevronDown size={15}/></div>
+      <div className="shop-switch"><span className="shop-avatar">S</span><span className="shop-copy"><b>Shared workspace</b><small>Subli-nation Printing System</small></span><ChevronDown size={15}/></div>
       <div className="nav-label">WORKSPACE</div>
       <nav className="nav">
         {navigation.map(item => {
@@ -117,7 +118,7 @@ export async function SectionPage({ title, description, area, action, children }
           <p>This section has its own route and is ready to be connected to the local-first workflow.</p>
           <Link href="/dashboard">Return to overview <ArrowRight size={14}/></Link>
         </>}</div>
-        <footer className="standalone-footer">SUBLIMATION PRINTING SYSTEM · SHARED WORKSPACE</footer>
+        <footer className="standalone-footer">SUBLI-NATION PRINTING SYSTEM · SHARED WORKSPACE</footer>
       </div>
     </section>
   </main>;

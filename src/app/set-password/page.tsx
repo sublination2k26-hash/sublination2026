@@ -24,7 +24,7 @@ export default function SetPasswordPage() {
     finally { setBusy(false); }
   }
   return <main className="login-screen"><form className="login-card" onSubmit={submit}>
-    <span className="brand-icon"><Sparkles size={19}/></span><div className="section-kicker">EMPLOYEE ACCOUNT</div><h1>Set your password</h1><p>Choose a password to finish setting up your Sublimation Printing System sign-in.</p>
+    <span className="brand-icon"><Sparkles size={19}/></span><div className="section-kicker">EMPLOYEE ACCOUNT</div><h1>Set your password</h1><p>Choose a password to finish setting up your Subli-nation Printing System sign-in.</p>
     {error && <div className="login-error" role="alert">{error}</div>}
     <label>Password<input required minLength={8} type="password" autoComplete="new-password" value={password} onChange={event => setPassword(event.target.value)}/></label>
     <label>Confirm password<input required minLength={8} type="password" autoComplete="new-password" value={confirm} onChange={event => setConfirm(event.target.value)}/></label>

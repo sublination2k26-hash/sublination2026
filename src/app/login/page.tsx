@@ -34,7 +34,7 @@ export default function LoginPage() {
   }
 
   return <main className="login-screen"><form className="login-card" onSubmit={submit}>
-    <span className="brand-icon"><Sparkles size={19}/></span><div className="section-kicker">SUBLIMATION PRINTING SYSTEM</div><h1>Welcome back</h1>
+    <span className="brand-icon"><Sparkles size={19}/></span><div className="section-kicker">SUBLI-NATION PRINTING SYSTEM</div><h1>Welcome back</h1>
     <p>Sign in with your employee account to open the production workspace.</p>
     {!supabaseConfigured && <div className="login-setup"><AlertCircle size={16}/><span>Supabase isn’t connected yet. Copy <code>.env.example</code> to <code>.env.local</code>, add your project URL and anon key, then restart the app.</span></div>}
     {error && <div className="login-error" role="alert">{error}</div>}

@@ -6,6 +6,7 @@ export const workspaceNavigation = [
   { label: "Customers", href: "/dashboard?view=Customers" },
   { label: "Products", href: "/products" },
   { label: "Employees", href: "/employees" },
+  { label: "Payroll", href: "/payroll" },
   { label: "Job orders", href: "/dashboard?view=Job%20orders" },
   { label: "Reports", href: "/dashboard?view=Reports" },
   { label: "Quality control", href: "/quality-control" },
