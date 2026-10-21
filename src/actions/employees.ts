@@ -5,7 +5,7 @@ import { createClient as createSupabaseAdmin } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { authEmailToEmployeeLogin } from "@/lib/auth/employee-login";
-import type { AppRole } from "@/lib/auth/permissions";
+import { APP_ROLES, type AppRole } from "@/lib/auth/permissions";
 
 export type EmployeeAccount = { id: string; name: string; loginId: string; role: AppRole; active: boolean };
 type Result = { ok: true } | { error: string };
@@ -45,6 +45,8 @@ export async function listEmployees(): Promise<{ employees?: EmployeeAccount[]; 
 export async function createEmployee(input: { name: string; email: string; password: string; role: AppRole }): Promise<Result> {
   try {
     await requireAdmin();
+    if (!input.name.trim()) return { error: "Enter the employee's full name." };
+    if (!APP_ROLES.includes(input.role)) return { error: "Select a valid employee role." };
     const email = input.email.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: "Enter a valid email address." };
     if (input.password.length < 8) return { error: "Password must be at least 8 characters." };
@@ -69,9 +71,13 @@ export async function createEmployee(input: { name: string; email: string; passw
 export async function updateEmployee(input: { id: string; name: string; role: AppRole; active: boolean }): Promise<Result> {
   try {
     const { supabase, user } = await requireAdmin();
+    if (!input.name.trim()) return { error: "Enter the employee's full name." };
+    if (!APP_ROLES.includes(input.role)) return { error: "Select a valid employee role." };
     if (input.id === user.id && !input.active) return { error: "You cannot deactivate the admin account currently in use." };
-    const { error } = await supabase.from("profiles").update({ full_name: input.name.trim(), role: input.role, active: input.active, updated_at: new Date().toISOString() }).eq("id", input.id);
+    if (input.id === user.id && input.role !== "admin") return { error: "You cannot remove admin access from the account currently in use." };
+    const { data, error } = await supabase.from("profiles").update({ full_name: input.name.trim(), role: input.role, active: input.active, updated_at: new Date().toISOString() }).eq("id", input.id).select("id").single();
     if (error) throw error;
+    if (!data) throw new Error("Employee was not updated. Refresh the employee list and try again.");
     revalidatePath("/employees");
     return { ok: true };
   } catch (error) { return { error: error instanceof Error ? error.message : "Could not update employee." }; }

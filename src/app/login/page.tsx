@@ -1,5 +1,6 @@
 "use client";
 
+import { BrandLogo } from "@/components/ui/brand-logo";
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, Sparkles } from "lucide-react";
@@ -29,12 +30,18 @@ export default function LoginPage() {
       const { error: authError } = await supabase.auth.signInWithPassword({ email: employeeLoginToAuthEmail(loginId), password });
       if (authError) throw authError;
       router.replace("/dashboard"); router.refresh();
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not sign in."); }
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : "Could not sign in.";
+      const connectionFailed = /failed to fetch|fetch failed|networkerror|network request failed|load failed/i.test(message);
+      setError(connectionFailed
+        ? "Cannot connect to the sign-in service. Check your internet connection, VPN, or DNS settings, then try again."
+        : message);
+    }
     finally { setBusy(false); }
   }
 
   return <main className="login-screen"><form className="login-card" onSubmit={submit}>
-    <span className="brand-icon"><Sparkles size={19}/></span><div className="section-kicker">SUBLI-NATION PRINTING SYSTEM</div><h1>Welcome back</h1>
+    <BrandLogo/><div className="section-kicker">SUBLI-NATION PRINTING SYSTEM</div><h1>Welcome back</h1>
     <p>Sign in with your employee account to open the production workspace.</p>
     {!supabaseConfigured && <div className="login-setup"><AlertCircle size={16}/><span>Supabase isn’t connected yet. Copy <code>.env.example</code> to <code>.env.local</code>, add your project URL and anon key, then restart the app.</span></div>}
     {error && <div className="login-error" role="alert">{error}</div>}

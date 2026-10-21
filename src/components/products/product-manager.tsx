@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { Check, Package, Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { garmentCategories } from "@/lib/garment-options";
 
 type Product = {
   id: string;
@@ -72,7 +73,9 @@ export function ProductManager({ initialProducts }: { initialProducts: Product[]
       <div className="employee-form-title"><span>Add product</span></div>
       <div className="employee-form-fields">
         <label>Product name *<input required maxLength={120} value={name} onChange={event => setName(event.target.value)} placeholder="e.g. Custom basketball jersey"/></label>
-        <label>Category *<input required maxLength={80} value={category} onChange={event => setCategory(event.target.value)} placeholder="e.g. Jerseys"/></label>
+        {productionType === "full_garment"
+          ? <label>Garment type *<select required value={category} onChange={event => setCategory(event.target.value)}><option value="">Choose garment type</option>{garmentCategories.map(group => <optgroup key={group.label} label={group.label}>{group.options.map(option => <option key={option} value={`${group.label} · ${option}`}>{option}</option>)}</optgroup>)}</select></label>
+          : <label>Category *<input required maxLength={80} value={category} onChange={event => setCategory(event.target.value)} placeholder="e.g. Artwork printing"/></label>}
         <label>Production type *<select value={productionType} onChange={event => setProductionType(event.target.value as Product["production_type"])}><option value="full_garment">Full garment</option><option value="print_only">Print only</option><option value="service">Other service</option></select></label>
         <label>Base price (₱) *<input required type="number" min="0" step="0.01" value={price} onChange={event => setPrice(event.target.value)} placeholder="0.00"/></label>
       </div>

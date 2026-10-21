@@ -23,6 +23,7 @@ export function PayrollManager(){
   const [basis,setBasis]=useState<Compensation["salary_basis"]>("fixed"),[frequency,setFrequency]=useState<Compensation["pay_frequency"]>("monthly"),[baseRate,setBaseRate]=useState(""),[pieceRate,setPieceRate]=useState("");
   const [periodStart,setPeriodStart]=useState(today().slice(0,8)+"01"),[periodEnd,setPeriodEnd]=useState(today()),[openRun,setOpenRun]=useState("");
   const [adjustments,setAdjustments]=useState<Record<string,{amount:string;note:string}>>({});
+  const [linesVersion,setLinesVersion]=useState(0);
 
   const load=async()=>{setLoading(true);setError("");try{const [e,c,w,r,o]=await Promise.all([
     db.from("profiles").select("id,full_name,role,active").order("full_name"),
@@ -34,17 +35,41 @@ export function PayrollManager(){
   const [orders,setOrders]=useState<{id:string;order_number:string}[]>([]);
   useEffect(()=>{void load();},[]);
   useEffect(()=>{const config=compensations.find(item=>item.employee_id===selectedEmployee);setBasis(config?.salary_basis??"fixed");setFrequency(config?.pay_frequency??"monthly");setBaseRate(config?String(config.base_rate):"");setPieceRate(config?String(config.piece_rate):"");},[selectedEmployee,compensations]);
-  useEffect(()=>{if(openRun){void db.from("payroll_lines").select("id,payroll_run_id,employee_id,role,salary_basis,pay_frequency,base_pay,approved_units,production_pay,adjustments,adjustment_note,total_pay").eq("payroll_run_id",openRun).then(({data,error})=>{if(error)setError(error.message);else setLines((data??[]) as Line[]);});}else setLines([]);},[openRun]);
+  useEffect(()=>{
+    let active=true;
+    setLines([]);
+    setAdjustments({});
+    if(openRun){
+      void db.from("payroll_lines").select("id,payroll_run_id,employee_id,role,salary_basis,pay_frequency,base_pay,approved_units,production_pay,adjustments,adjustment_note,total_pay").eq("payroll_run_id",openRun).then(({data,error})=>{
+        if(!active)return;
+        if(error)setError(error.message);
+        else setLines((data??[]) as Line[]);
+      });
+    }
+    return()=>{active=false;};
+  },[openRun,db,linesVersion]);
   const activeEmployees=employees.filter(employee=>employee.active&&employee.role!=="admin");
   const currentRun=runs.find(run=>run.id===openRun);
   const compByEmployee=useMemo(()=>new Map(compensations.map(item=>[item.employee_id,item])),[compensations]);
   const employeeName=(id:string)=>employees.find(item=>item.id===id)?.full_name??"Unknown employee";
   const fail=(reason:unknown)=>setError(reason instanceof Error?reason.message:typeof reason==="object"&&reason!==null&&"message" in reason?String(reason.message):"Could not save payroll information.");
   const saveCompensation=async()=>{if(!selectedEmployee){setError("Select an employee first.");return;}setBusy(true);setError("");try{const {data:{user}}=await db.auth.getUser();const {error}=await db.from("employee_compensation").upsert({employee_id:selectedEmployee,salary_basis:basis,pay_frequency:frequency,base_rate:Number(baseRate)||0,piece_rate:Number(pieceRate)||0,updated_by:user?.id,updated_at:new Date().toISOString()});if(error)throw error;setNotice("Pay settings saved.");await load();}catch(reason){fail(reason);}finally{setBusy(false);}};
-  const reviewWork=async(record:WorkRecord,status:"approved"|"rejected"|"rework")=>{try{const {data:{user}}=await db.auth.getUser();const {error}=await db.from("employee_work_records").update({status,approved_by:status==="approved"?user?.id:null,approved_at:status==="approved"?new Date().toISOString():null}).eq("id",record.id).is("payroll_run_id",null);if(error)throw error;setNotice(`Work record ${status}.`);await load();}catch(reason){fail(reason);}};
+  const reviewWork=async(record:WorkRecord,status:"approved"|"rejected"|"rework")=>{try{const {data:{user}}=await db.auth.getUser();const {error}=await db.from("employee_work_records").update({status,approved_by:status==="approved"?user?.id:null,approved_at:status==="approved"?new Date().toISOString():null}).eq("id",record.id).eq("status","pending_review").is("payroll_run_id",null).select("id").single();if(error)throw error;setNotice(`Work record ${status}.`);await load();}catch(reason){fail(reason);}};
   const createRun=async()=>{setBusy(true);setError("");try{const {data,error}=await db.rpc("create_payroll_run",{p_start:periodStart,p_end:periodEnd});if(error)throw error;setOpenRun(data);setNotice("Draft payroll created. Review earnings and adjustments before approval.");await load();}catch(reason){fail(reason);}finally{setBusy(false);}};
   const updateRunStatus=async(run:Run,action:"approve_payroll_run"|"mark_payroll_run_paid")=>{setBusy(true);setError("");try{const {error}=await db.rpc(action,{p_run_id:run.id});if(error)throw error;setNotice(action==="approve_payroll_run"?"Payroll approved.":"Payroll marked paid.");await load();}catch(reason){fail(reason);}finally{setBusy(false);}};
-  const saveAdjustment=async(line:Line)=>{const value=adjustments[line.id]??{amount:String(line.adjustments),note:line.adjustment_note??""};const amount=Number(value.amount)||0;const {error}=await db.from("payroll_lines").update({adjustments:amount,adjustment_note:value.note||null,total_pay:Number(line.base_pay)+Number(line.production_pay)+amount}).eq("id",line.id);if(error){fail(error);return;}setNotice("Payroll adjustment saved.");const {data}=await db.from("payroll_lines").select("id,payroll_run_id,employee_id,role,salary_basis,pay_frequency,base_pay,approved_units,production_pay,adjustments,adjustment_note,total_pay").eq("payroll_run_id",openRun);setLines((data??[]) as Line[]);};
+  const saveAdjustment=async(line:Line)=>{
+    if(currentRun?.status!=="draft"||line.payroll_run_id!==openRun)return;
+    const value=adjustments[line.id]??{amount:String(line.adjustments),note:line.adjustment_note??""};
+    const amount=Number(value.amount);
+    if(!Number.isFinite(amount)){setError("Enter a valid adjustment amount.");return;}
+    setBusy(true);setError("");
+    try{
+      const {error}=await db.from("payroll_lines").update({adjustments:amount,adjustment_note:value.note||null,total_pay:Number(line.base_pay)+Number(line.production_pay)+amount}).eq("id",line.id).select("id").single();
+      if(error)throw error;
+      setNotice("Payroll adjustment saved.");
+      setLinesVersion(version=>version+1);
+    }catch(reason){fail(reason);}finally{setBusy(false);}
+  };
   return <div className="payroll-manager">
     <div className="payroll-intro"><div className="payroll-icon"><CircleDollarSign size={18}/></div><div><b>Owner-controlled pay rules</b><span>Rates are configured per employee. Only approved, eligible production is included; rework is tracked separately and is excluded from piece pay by default.</span></div></div>
     {error&&<div className="payroll-alert is-error">{error}</div>}{notice&&<div className="payroll-alert"><Check size={15}/>{notice}<button onClick={()=>setNotice("")} aria-label="Dismiss"><X size={14}/></button></div>}

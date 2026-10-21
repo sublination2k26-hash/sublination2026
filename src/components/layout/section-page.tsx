@@ -1,3 +1,4 @@
+import { BrandLogo } from "@/components/ui/brand-logo";
 import Link from "next/link";
 import {
   Activity,
@@ -10,7 +11,6 @@ import {
   Shirt,
   Sparkles,
   Users,
-  WandSparkles,
 } from "lucide-react";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { workspaceNavigation } from "@/components/layout/navigation";
@@ -65,12 +65,11 @@ export async function SectionPage({ title, description, area, action, children }
   const navigation = workspaceNavigation.filter(item => allowedItems.includes(item.label));
   const activeArea = area.split(" · ")[0];
   const displayName = profile?.full_name ?? user?.email ?? "Staff account";
-  const canOpenDesignLibrary = isAdmin || profile?.role === "artist";
 
   return <main className="shell">
     <aside className="sidebar">
       <Link className="brand" href="/dashboard">
-        <span className="brand-icon"><Sparkles size={19}/></span>
+        <BrandLogo/>
         <span>Subli-nation<br/><span className="brand-light">Printing System</span><small>PRODUCTION DESK</small></span>
       </Link>
       <div className="shop-switch"><span className="shop-avatar">S</span><span className="shop-copy"><b>Shared workspace</b><small>Subli-nation Printing System</small></span><ChevronDown size={15}/></div>
@@ -83,16 +82,7 @@ export async function SectionPage({ title, description, area, action, children }
           </Link>;
         })}
       </nav>
-      {canOpenDesignLibrary && <>
-        <div className="nav-label second-label">TOOLS</div>
-        <nav className="nav"><Link className="nav-item" href="/dashboard?view=Design%20library"><WandSparkles size={17}/>Design library</Link></nav>
-      </>}
       <div className="sidebar-bottom">
-        <div className="help-card">
-          <div className="help-icon"><Sparkles size={16}/></div>
-          <b>Shared Supabase data</b>
-          <p>Orders, payments, customers, QC, and production updates are saved to your shop database.</p>
-        </div>
         <div className="profile">
           <div className="profile-avatar">{displayName.slice(0, 2).toUpperCase()}</div>
           <div><b>{displayName}</b><small>{profile?.role ? roleLabels[profile.role] : ""}</small></div>
