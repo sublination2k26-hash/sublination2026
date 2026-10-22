@@ -1,5 +1,5 @@
 export const garmentCategories = [
-  { label: "Upperwear", options: ["T-shirt", "Jersey", "Jersey top", "Polo shirt", "Long-sleeve shirt", "Tank top / singlet", "Hoodie", "Sweatshirt", "Sports bra / crop top", "Rash guard"] },
+  { label: "Upperwear", options: ["T-shirt", "Jersey", "Jersey top", "Polo shirt", "Chinese collar", "Long-sleeve shirt", "Tank top / singlet", "Hoodie", "Sweatshirt", "Sports bra / crop top", "Rash guard"] },
   { label: "Bottomwear", options: ["Shorts", "Cycling shorts", "Joggers / track pants", "Leggings / tights", "Skirt"] },
   { label: "Sets", options: ["Jersey + shorts set", "Shirt + shorts set", "Tracksuit", "Top + leggings set"] },
   { label: "One-piece garments", options: ["Dress", "Swimwear", "Leotard / bodysuit", "Jumpsuit"] },

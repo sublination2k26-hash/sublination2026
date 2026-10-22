@@ -1,9 +1,10 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 import { Check, Package, Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { garmentCategories } from "@/lib/garment-options";
+import { garmentPricing, pricingServices, serviceProductionStages, type PricingService } from "@/lib/product-pricing";
+import "./product-manager.css";
 
 type Product = {
   id: string;
@@ -25,14 +26,60 @@ export function ProductManager({ initialProducts }: { initialProducts: Product[]
   const [products, setProducts] = useState(initialProducts);
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
-  const [productionType, setProductionType] = useState<Product["production_type"]>("full_garment");
+  const [service, setService] = useState<PricingService>("full_garment");
+  const [garment, setGarment] = useState("");
+  const selectedService = pricingServices.find(item => item.id === service)!;
+  const productionType = selectedService.productionType;
+  const options = garmentPricing(service);
+  const fixedPrice = options.find(item => item.garment === garment)?.price;
+  const manualPricing = fixedPrice == null;
+  const selectGarment = (value: string, nextService: PricingService = service) => {
+    const selected = garmentPricing(nextService).find(item => item.garment === value);
+    const mode = pricingServices.find(item => item.id === nextService)!;
+    setGarment(value);
+    setCategory(value ? `${mode.label} - ${value}` : "");
+    setName(value ? (nextService === "full_garment" ? value : `${mode.label} - ${value}`) : "");
+    setPrice(selected?.price == null ? "" : String(selected.price));
+  };
   const [price, setPrice] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [changingId, setChangingId] = useState<string | null>(null);
+  const changing = useRef(false);
+  const [showRemoved, setShowRemoved] = useState(false);
+  const visibleProducts = products.filter(product => showRemoved || product.active);
+
+  const changeProductStatus = async (product: Product) => {
+    if (changing.current || saving) return;
+    if (product.active && !window.confirm(`Remove ${product.name} from the catalog? Existing orders will be kept. You can restore the product later.`)) return;
+    changing.current = true;
+    setChangingId(product.id);
+    setError("");
+    setNotice("");
+    try {
+      const { data, error: updateError } = await createClient().from("products")
+        .update({ active: !product.active }).eq("id", product.id).select("id,active").single();
+      if (updateError) throw updateError;
+      if (!data) throw new Error("Product was not updated. Refresh and try again.");
+      setProducts(current => current.map(item => item.id === data.id ? { ...item, active: data.active } : item));
+      setNotice(`${product.name} ${data.active ? "restored to" : "removed from"} the catalog.`);
+    } catch (cause) {
+      setError(typeof cause === "object" && cause !== null && "message" in cause ? String(cause.message) : "Could not update this product.");
+    } finally {
+      changing.current = false;
+      setChangingId(null);
+    }
+  };
 
   const addProduct = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (saving || changing.current) return;
+    const unitPrice = Number(price);
+    if (!garment || !name.trim() || !Number.isFinite(unitPrice) || unitPrice <= 0) {
+      setError("Choose a garment and enter a product name and a price greater than zero.");
+      return;
+    }
     setSaving(true);
     setError("");
     setNotice("");
@@ -41,13 +88,15 @@ export function ProductManager({ initialProducts }: { initialProducts: Product[]
         name: name.trim(),
         category: category.trim(),
         production_type: productionType,
-        base_price: Number(price),
+        production_service: service,
+        base_price: unitPrice,
       }).select("id,name,category,production_type,base_price,active,created_at").single();
       if (insertError) throw insertError;
       setProducts(current => [data as Product, ...current]);
       setName("");
       setCategory("");
-      setProductionType("full_garment");
+      setService("full_garment");
+      setGarment("");
       setPrice("");
       setNotice("Product saved to Supabase.");
     } catch (cause) {
@@ -62,38 +111,39 @@ export function ProductManager({ initialProducts }: { initialProducts: Product[]
       <div>
         <div className="section-kicker">ADMIN CATALOG</div>
         <h2>Products</h2>
-        <p>New products are saved in your shared Supabase database.</p>
+        <p>Manage products available for new orders. Removed products can be restored.</p>
       </div>
     </div>
 
-    {notice && <div className="employee-notice"><Check size={14}/>{notice}</div>}
+    {notice && <div className="employee-notice" role="status"><Check size={14}/>{notice}</div>}
     {error && <div className="employee-error" role="alert">{error}</div>}
 
     <form className="employee-form" onSubmit={addProduct}>
       <div className="employee-form-title"><span>Add product</span></div>
       <div className="employee-form-fields">
-        <label>Product name *<input required maxLength={120} value={name} onChange={event => setName(event.target.value)} placeholder="e.g. Custom basketball jersey"/></label>
-        {productionType === "full_garment"
-          ? <label>Garment type *<select required value={category} onChange={event => setCategory(event.target.value)}><option value="">Choose garment type</option>{garmentCategories.map(group => <optgroup key={group.label} label={group.label}>{group.options.map(option => <option key={option} value={`${group.label} · ${option}`}>{option}</option>)}</optgroup>)}</select></label>
-          : <label>Category *<input required maxLength={80} value={category} onChange={event => setCategory(event.target.value)} placeholder="e.g. Artwork printing"/></label>}
-        <label>Production type *<select value={productionType} onChange={event => setProductionType(event.target.value as Product["production_type"])}><option value="full_garment">Full garment</option><option value="print_only">Print only</option><option value="service">Other service</option></select></label>
-        <label>Base price (₱) *<input required type="number" min="0" step="0.01" value={price} onChange={event => setPrice(event.target.value)} placeholder="0.00"/></label>
+        <label>Service *<select value={service} onChange={event => {const next = event.target.value as PricingService; setService(next); selectGarment("", next);}}>{pricingServices.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
+        <label>Garment type *<select required value={garment} onChange={event => selectGarment(event.target.value)}><option value="">Choose garment type</option>{options.map(item => <option key={item.garment} value={item.garment}>{item.garment}</option>)}</select></label>
+        <label>Product name *<input required maxLength={120} value={name} readOnly={!!garment && !manualPricing} onChange={event => setName(event.target.value)} placeholder="Select a garment or name your special item"/></label>
+        <label>Unit price (PHP) *<input required type="number" min="0.01" step="0.01" value={price} onChange={event => setPrice(event.target.value)} placeholder="Enter your price"/><small>{!garment ? "Choose a garment to load its preset price." : manualPricing ? "Enter your price for this item before adding it." : `Preset: PHP ${fixedPrice}. You can change the price before adding this product.`}</small></label>
       </div>
-      <div className="form-actions"><button className="primary-button" type="submit" disabled={saving}><Plus size={15}/>{saving ? "Saving…" : "Add product"}</button></div>
+      <p className="employee-form-note">Production: {serviceProductionStages[service].map(stage => ({layout:"Layout",printing:"Printing",heat_press:"Heat press",cutting:"Cutting",sewing:"Sewing",qc:"QC"}[stage])).join(" → ")} → Release</p>
+      <div className="form-actions"><button className="primary-button" type="submit" disabled={saving || changingId !== null}><Plus size={15}/>{saving ? "Saving…" : "Add product"}</button></div>
     </form>
 
-    <div className="employee-table-wrap">
+    <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, fontSize: 13 }}><input type="checkbox" checked={showRemoved} onChange={event => setShowRemoved(event.target.checked)}/> Show removed products</label>
+    <div className="employee-table-wrap products-table-scroll" role="region" aria-label="Product catalog, scroll to see more products" tabIndex={0}>
       <table>
-        <thead><tr><th>PRODUCT</th><th>CATEGORY</th><th>TYPE</th><th>BASE PRICE</th><th>STATUS</th></tr></thead>
-        <tbody>{products.map(product => <tr key={product.id}>
+        <thead><tr><th>PRODUCT</th><th>CATEGORY</th><th>TYPE</th><th>BASE PRICE</th><th>STATUS</th><th>ACTION</th></tr></thead>
+        <tbody>{visibleProducts.map(product => <tr key={product.id}>
           <td><b>{product.name}</b></td>
           <td>{product.category}</td>
-          <td>{typeLabels[product.production_type]}</td>
+          <td>{pricingServices.find(item => (product.category.startsWith(item.label + " - ") || product.category.startsWith(item.label + " ? ")))?.label ?? typeLabels[product.production_type]}</td>
           <td>{Number(product.base_price).toLocaleString("en-PH", { style: "currency", currency: "PHP" })}</td>
-          <td>{product.active ? "Active" : "Inactive"}</td>
+          <td>{product.active ? "Active" : "Removed"}</td>
+          <td><button type="button" className="filter-button" disabled={saving || changingId !== null} aria-label={`${product.active ? "Remove" : "Restore"} ${product.name}`} onClick={() => void changeProductStatus(product)}>{changingId === product.id ? "Saving…" : product.active ? "Remove" : "Restore"}</button></td>
         </tr>)}</tbody>
       </table>
-      {products.length === 0 && <p className="empty-inline"><Package size={16}/> No products yet. Add your first product above.</p>}
+      {visibleProducts.length === 0 && <p className="empty-inline"><Package size={16}/> No {showRemoved ? "" : "active "}products. Add a product above{!showRemoved && " or show removed products to restore one"}.</p>}
     </div>
   </section>;
 }

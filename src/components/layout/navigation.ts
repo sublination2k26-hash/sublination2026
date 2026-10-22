@@ -5,6 +5,8 @@ export const workspaceNavigation = [
   { label: "Payments", href: "/dashboard?view=Payments" },
   { label: "Customers", href: "/dashboard?view=Customers" },
   { label: "Products", href: "/products" },
+  { label: "Inventory", href: "/inventory" },
+  { label: "Messages", href: "/messages" },
   { label: "Employees", href: "/employees" },
   { label: "Payroll", href: "/payroll" },
   { label: "Job orders", href: "/dashboard?view=Job%20orders" },

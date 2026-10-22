@@ -1,0 +1,94 @@
+/* Shared phone and tablet layout for all workspaces. */
+.mobile-navigation{display:none}
+.shell .main-area,.shell .content,.shell .panel,.standalone-panel,.employee-manager,.payroll-manager{min-width:0;max-width:100%}
+.table-wrap,.employee-table-wrap,.payroll-table-wrap,.roster-scroll{max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+input,select,textarea{max-width:100%}
+@media(max-width:900px){
+  .shell{display:block;min-height:100dvh}
+  .shell>.sidebar{display:none}
+  .mobile-navigation{display:block;border-bottom:1px solid var(--line);background:var(--bg);padding:0 16px}
+  .mobile-navigation-bar{min-height:58px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .mobile-brand{font:800 19px Manrope,sans-serif}
+  .mobile-menu-toggle,.mobile-menu-close{display:flex;align-items:center;justify-content:center;gap:8px;min-width:44px;min-height:44px;border:0;border-radius:8px;background:transparent;color:inherit;font:600 14px 'DM Sans',sans-serif;cursor:pointer}
+  .mobile-menu-toggle{padding:0 10px}.mobile-menu-toggle:hover,.mobile-menu-close:hover{background:#64748b15}
+  .mobile-drawer{position:fixed;inset:0 auto 0 0;margin:0;width:min(310px,86vw);max-width:100%;height:100dvh;max-height:100dvh;border:0;border-right:1px solid var(--line);padding:0;background:#fff;color:var(--ink);box-shadow:12px 0 40px #0f172a20;overflow:hidden}
+  .mobile-drawer[open]{display:flex;flex-direction:column}
+  .mobile-drawer::backdrop{background:#0f172a66;backdrop-filter:blur(2px)}
+  .mobile-drawer-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:20px 16px 16px}
+  .mobile-drawer-heading>div{display:flex;flex-direction:column;gap:4px}.mobile-drawer-heading b{font:800 21px Manrope,sans-serif}.mobile-drawer-heading span{font-size:12px;color:var(--muted)}
+  .mobile-drawer-label{margin:10px 20px 8px;font-size:10px;font-weight:700;letter-spacing:1.5px;color:var(--muted)}
+  .mobile-navigation .mobile-drawer nav{display:flex;flex-direction:column;gap:3px;padding:0 12px 16px;overflow-y:auto;overscroll-behavior:contain;flex:1;min-height:0}
+  .mobile-drawer nav a,.mobile-drawer nav button{display:flex;align-items:center;text-align:left;gap:12px;min-height:44px;flex-shrink:0;padding:10px 12px;border:0;border-radius:8px;background:transparent;color:inherit;text-decoration:none;font:500 14px 'DM Sans',sans-serif}
+  .mobile-drawer nav svg{flex:none;color:var(--muted)}
+  .mobile-drawer nav a:hover,.mobile-drawer nav button:hover{background:#64748b10}
+  .mobile-drawer nav [aria-current=page]{background:#e8eff8;color:#1d4ed8;font-weight:700}.mobile-drawer nav [aria-current=page] svg{color:inherit}
+  .mobile-account{display:flex;align-items:center;gap:10px;margin-top:auto;padding:16px;padding-bottom:max(16px,env(safe-area-inset-bottom));border-top:1px solid var(--line)}
+  .mobile-account>div{min-width:0;flex:1;display:flex;flex-direction:column;gap:4px;overflow-wrap:anywhere}
+  .mobile-account b{font-size:13px}.mobile-account small{font-size:11px;color:var(--muted)}
+  .mobile-account-avatar{display:grid;place-items:center;width:36px;height:36px;flex:none;border-radius:50%;background:#e8eff8;color:#315d8e;font-size:12px;font-weight:700}
+  .mobile-account .logout-button{width:44px;height:44px}
+  html[data-theme="dark"] .mobile-drawer{background:#172234}html[data-theme="dark"] .mobile-drawer nav [aria-current=page]{background:#253c60;color:#93c5fd}
+  .shell .topbar{height:auto;min-height:58px;padding:10px 16px;flex-wrap:wrap;gap:10px}
+  .shell .top-actions{flex-wrap:wrap;gap:8px;max-width:100%;min-width:0}
+  .shell .content{width:100%;padding:22px 16px}
+  .shell .search{width:min(260px,60vw);min-width:140px;height:44px;justify-content:flex-start;border:1px solid var(--line);padding:0 10px;border-radius:7px}
+  .shell .search input{min-width:0;width:100%;font-size:16px}
+  .shell .primary-button,.shell .page-heading .primary-button,.shell .detail-heading .primary-button,.shell .employee-manager-heading .primary-button{font-size:14px;min-height:44px;height:auto;padding:10px 14px;white-space:normal}
+  .detail-grid,.bottom-grid,.payroll-two-col{grid-template-columns:minmax(0,1fr)}
+  .employee-form-fields,.payroll-form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .panel-heading,.employee-manager-heading,.payroll-section-heading{flex-wrap:wrap;gap:12px}
+  .panel-heading>div,.employee-manager-heading>div,.payroll-section-heading>div{min-width:0}
+  .panel-heading>div:last-child{flex-wrap:wrap}
+  .standalone-title-row,.page-heading,.detail-heading,.welcome{flex-wrap:wrap;gap:14px}
+  .standalone-title-row>div,.page-heading>div,.detail-heading>div,.welcome>div{min-width:0}
+}
+@media(max-width:600px){
+  .shell .content{padding:18px 12px}.shell .topbar{padding:10px 12px}
+  .shell .breadcrumbs{font-size:12px;overflow-wrap:anywhere}
+  .shell .top-actions{width:100%}
+  .shell .search{display:flex;flex:1;min-width:140px;width:auto;height:44px;justify-content:flex-start;border:1px solid var(--line);padding:0 10px;border-radius:7px}
+  .shell .search input{min-width:0;width:100%;font-size:16px}
+  .shell .icon-button,.shell .theme-toggle{min-width:44px;min-height:44px}
+  .shell .primary-button,.shell .page-heading .primary-button,.shell .detail-heading .primary-button,.shell .employee-manager-heading .primary-button{font-size:14px;min-height:44px;height:auto;max-width:100%;padding:10px 14px;white-space:normal;justify-content:center;gap:7px}
+  .shell .primary-button svg{flex:none}
+  .shell .welcome h1,.shell .page-heading h1,.shell .detail-heading h1,.shell .standalone-title-row h1{font-size:26px;overflow-wrap:anywhere}
+  .shell .page-heading p,.shell .detail-heading p,.shell .welcome p{max-width:none}
+  .shell .panel{padding:14px;overflow-wrap:anywhere}
+  .shell .panel-heading h2{font-size:17px}
+  .shell .metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .shell .metric-card{min-width:0;padding:12px}
+  .shell .metric-value{font-size:24px;overflow-wrap:anywhere}
+  .shell .lanes{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .floor-foot,.table-foot,.roster-title,.payroll-lines-heading{flex-wrap:wrap;gap:8px}
+  .form-grid,.employee-form-fields,.payroll-form-grid,.payroll-run-create,.payroll-inline,.payment-summary,.detail-facts{grid-template-columns:minmax(0,1fr)}
+  .full-field,.total-preview,.payroll-run-create .primary-button{grid-column:1/-1}
+  .shell label{min-width:0}
+  .shell input:not([type=checkbox]):not([type=radio]),.shell select,.shell textarea,.modal input:not([type=checkbox]):not([type=radio]),.modal select,.modal textarea,.login-card input{font-size:16px;min-height:44px}
+  .shell .form input,.shell .form select,.shell .form textarea,.employee-form-fields input,.employee-form-fields select{width:100%}
+  .shell input[type=file]{font-size:13px;min-width:0}
+  .shell .task-status-control{max-width:none}
+  .shell .standalone-panel,.shell .standalone-panel:has(.employee-manager),.shell .standalone-panel:has(.payroll-manager){padding:14px;min-width:0}
+  .shell .employee-form{padding:12px}
+  .shell .table-wrap{margin-right:0;width:100%}
+  .shell .table-wrap table{min-width:680px}
+  .shell .board{max-width:100%;padding-bottom:12px;scroll-snap-type:x proximity}
+  .shell .board-lane{width:min(280px,82vw);min-width:min(280px,82vw);scroll-snap-align:start}
+  .shell .defect-row{flex-wrap:wrap;gap:10px;align-items:flex-start}
+  .shell .defect-row>span:nth-child(2){min-width:0;flex:1 1 160px}
+  .shell .balance-strip,.shell .total-preview{flex-wrap:wrap;gap:12px}
+  .shell .text-button,.shell .filter-button,.shell .quiet-button,.shell .link-button,.cancel-button{min-height:44px;display:inline-flex;align-items:center}
+  .shell .order-row-actions button,.shell .employee-actions button,.shell .payroll-review-actions button,.roster-remove{min-height:40px;min-width:40px}
+  .shell .admin-order-actions{flex-wrap:wrap}.shell .admin-order-actions button{min-height:40px}
+  .shell .notification-popover{position:fixed;top:124px;left:12px;right:12px;width:auto;max-height:65dvh}
+  .shell .toast{width:100%;max-width:100%;font-size:13px;overflow-wrap:anywhere}
+  .modal-backdrop{padding:8px;align-items:center}
+  .modal{width:100%;max-height:calc(100dvh - 16px);padding:16px;overscroll-behavior:contain}
+  .modal-heading h2{font-size:19px}.modal-heading button{min-width:44px;min-height:44px}
+  .modal .form-actions{position:sticky;bottom:-16px;background:var(--bg);padding:12px 0;gap:8px;z-index:1}
+  .modal .form-actions button{min-height:44px;font-size:14px;flex:1;justify-content:center}
+  .modal .roster-title{align-items:flex-start;flex-direction:column}
+  .modal .roster-scroll table{min-width:420px}
+  .login-screen{padding:20px 14px;min-height:100dvh}.login-card{padding:24px 20px}.login-card h1{font-size:27px}.login-card .primary-button{min-height:44px;font-size:16px;justify-content:center}
+  .activity-calendar .activity-help{padding:0;font-size:12px}.activity-calendar .activity-legend{padding:8px 0;gap:5px}.activity-calendar .activity-legend span{font-size:11px}.activity-calendar .activity-month{padding:10px 0}.activity-calendar .activity-grid{padding:8px 0}.activity-calendar .activity-latest{padding:4px 0 12px}.activity-calendar .activity-event-list{padding:0}.activity-calendar .activity-list-heading{padding:0}
+}
+@media(max-width:360px){.shell .metrics,.shell .lanes{grid-template-columns:minmax(0,1fr)}.shell .lane:last-child{grid-column:auto}.mobile-navigation{padding:0 12px}.activity-calendar .activity-day small{font-size:8px}}

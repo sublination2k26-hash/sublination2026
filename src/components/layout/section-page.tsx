@@ -1,3 +1,4 @@
+import { MobileNavigation } from "@/components/layout/mobile-navigation";
 import { BrandLogo } from "@/components/ui/brand-logo";
 import Link from "next/link";
 import {
@@ -7,6 +8,7 @@ import {
   CircleDollarSign,
   FileText,
   Layers3,
+  MessageSquare,
   Package,
   Shirt,
   Sparkles,
@@ -32,6 +34,8 @@ const navigationIcons = {
   Payments: CircleDollarSign,
   Customers: Users,
   Products: Package,
+  Inventory: Package,
+  Messages: MessageSquare,
   Employees: Users,
   Payroll: CircleDollarSign,
   "Job orders": FileText,
@@ -58,15 +62,16 @@ export async function SectionPage({ title, description, area, action, children }
   const { data: orderRows } = user ? await supabase.from("orders").select("status") : { data: [] };
   const activeOrderCount = (orderRows ?? []).filter(order => order.status !== "released" && order.status !== "cancelled").length;
   const allowedItems = isAdmin
-    ? ["Overview", "Orders", "Production", "Payments", "Customers", "Products", "Employees", "Payroll", "Job orders", "Reports"]
+    ? ["Overview", "Orders", "Production", "Payments", "Customers", "Products", "Inventory", "Employees", "Payroll", "Job orders", "Reports"]
     : profile?.role === "front_desk"
       ? ["Overview", "Orders", "Production", "Payments", "Customers", "Job orders", "Reports"]
       : ["Production", "Job orders"];
-  const navigation = workspaceNavigation.filter(item => allowedItems.includes(item.label));
+  const navigation = workspaceNavigation.filter(item => item.label === "Messages" || allowedItems.includes(item.label));
   const activeArea = area.split(" · ")[0];
   const displayName = profile?.full_name ?? user?.email ?? "Staff account";
 
   return <main className="shell">
+    <MobileNavigation items={navigation} active={activeArea} name={displayName} role={roleLabels[profile?.role??""]??"Staff"}/>
     <aside className="sidebar">
       <Link className="brand" href="/dashboard">
         <BrandLogo/>

@@ -45,3 +45,9 @@ test('customer totals keep namesakes separate and ignore cancelled debts', () =>
   assert.equal(summary.find(customer => customer.id === 'b').balance, 0);
   assert.equal(summary.find(customer => customer.id === 'c').orders, 0);
 });
+
+ test('customer summaries preserve contact details for customers with and without orders', () => {
+  const result = customerPaymentSummaries([], [{ id: 'customer-1', name: 'Alex', phone: '09171234567', facebook: 'Alex Prints' }], today);
+  assert.equal(result[0].phone, '09171234567');
+  assert.equal(result[0].facebook, 'Alex Prints');
+});

@@ -10,15 +10,15 @@ export function paymentTracking(total: number, payments: { amount: number }[], d
 }
 
 type PaymentOrder = { customerId: string; customer: string; phone: string; total: number; payments: { amount: number }[]; paymentDue: string; status: string };
-export type CustomerPaymentSummary = { id: string; name: string; phone: string; orders: number; spent: number; balance: number; overdue: number; overdueOrders: number; nextPaymentDue: string };
+export type CustomerPaymentSummary = { id: string; name: string; phone: string; facebook?: string; orders: number; spent: number; balance: number; overdue: number; overdueOrders: number; nextPaymentDue: string };
 
-export function customerPaymentSummaries(orders: PaymentOrder[], directory: { id: string; name: string; phone: string }[], today = manilaToday()): CustomerPaymentSummary[] {
+export function customerPaymentSummaries(orders: PaymentOrder[], directory: { id: string; name: string; phone: string; facebook?: string }[], today = manilaToday()): CustomerPaymentSummary[] {
   const customers = new Map<string, CustomerPaymentSummary>();
-  const ensure = (id: string, name: string, phone: string) => {
-    if (!customers.has(id)) customers.set(id, { id, name, phone, orders: 0, spent: 0, balance: 0, overdue: 0, overdueOrders: 0, nextPaymentDue: "" });
+  const ensure = (id: string, name: string, phone: string, facebook = "") => {
+    if (!customers.has(id)) customers.set(id, { id, name, phone, facebook, orders: 0, spent: 0, balance: 0, overdue: 0, overdueOrders: 0, nextPaymentDue: "" });
     return customers.get(id)!;
   };
-  directory.forEach(customer => ensure(customer.id, customer.name, customer.phone));
+  directory.forEach(customer => ensure(customer.id, customer.name, customer.phone, customer.facebook));
   orders.forEach(order => {
     const customer = ensure(order.customerId, order.customer, order.phone);
     customer.orders++;

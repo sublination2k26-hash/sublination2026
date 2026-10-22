@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import "./theme.css";
+import "./responsive.css";
 
 export const metadata: Metadata = {
   title: "Subli-nation Printing System",

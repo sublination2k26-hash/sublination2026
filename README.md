@@ -18,8 +18,20 @@ Next.js application with Supabase Auth, PostgreSQL, Row Level Security, and priv
 - Admin access is allowed by the RLS policies for every role's production stage and business functions.
 - The secret key is used only in server actions to create employee auth accounts. Employee creation confirms the account directly and does not send an invitation email. Database access uses authenticated sessions and RLS.
 
+## Materials inventory
+
+Apply `supabase/migrations/20261022071231_materials_inventory.sql` in the configured project's SQL Editor, then open **Inventory** from the admin sidebar (`/inventory`). The migration adds 20 starter supplies at zero stock. Admins can add materials, edit names, categories and units, record current quantities, and set low-stock levels. Quantities support three decimal places. Stock edits detect concurrent changes; reload before retrying a conflicting edit. Inventory access is restricted to active admins through both the page and database policies.
+
 ## Shared dashboard data
 
 Orders, order items, customers, payments, production tasks, defects, and QC inspections are stored in Supabase and protected by the database RLS policies. Employee accounts are managed through Supabase Auth and `profiles`.
 
 The dashboard previously stored demo records in browser local storage. Those old records are not copied automatically into Supabase; review them separately before importing anything into the live database. New and updated records are written to the shared Supabase project after both migrations above have been applied.
+
+## Team messages
+
+Apply `supabase/migrations/20261022080555_team_messages.sql` in the configured project's SQL Editor. All active employees and admins can open **Messages** from the sidebar at `/messages`. The shared chat refreshes every four seconds, shows sender names and Philippine timestamps, and loads older history on demand. Messages are limited to 2,000 characters. Database policies restrict reading and sending to active staff, and senders are assigned from the authenticated session.
+
+## Service production routes
+
+Apply `supabase/migrations/20261022084023_service_production_routes.sql` before adding new products. New orders follow their selected product's service: full garment uses layout, printing, heat press, cutting, sewing and QC; sub-con print only uses layout, printing and QC; sub-con print and press adds heat press; sub-con with sewing uses layout, cutting, sewing and QC. Existing order task histories are preserved. New products store an explicit service, and new orders snapshot it with their production instructions.
