@@ -4,9 +4,9 @@ import { NextResponse, type NextRequest } from "next/server";
 export async function middleware(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const isPublic = request.nextUrl.pathname === "/login" || request.nextUrl.pathname === "/auth/callback";
+  const isPublic = request.nextUrl.pathname === "/login" || request.nextUrl.pathname === "/auth/callback" || request.nextUrl.pathname === "/scan-qr";
   if (!url || !publishableKey) {
-    if (request.nextUrl.pathname === "/login") return NextResponse.next();
+    if (request.nextUrl.pathname === "/login" || request.nextUrl.pathname === "/scan-qr") return NextResponse.next();
     const target = request.nextUrl.clone();
     target.pathname = "/login";
     target.search = "";
@@ -47,7 +47,7 @@ export async function middleware(request: NextRequest) {
     }
     if (isLogin) {
       const target = request.nextUrl.clone();
-      target.pathname = "/dashboard";
+      target.pathname = request.nextUrl.searchParams.get("next") === "/scan-qr" ? "/scan-qr" : "/dashboard";
       target.search = "";
       const redirect = NextResponse.redirect(target);
       response.cookies.getAll().forEach(cookie => redirect.cookies.set(cookie));

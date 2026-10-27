@@ -35,9 +35,11 @@ const navigationIcons = {
   Customers: Users,
   Products: Package,
   Inventory: Package,
+  "Document Routing": FileText,
   Messages: MessageSquare,
   Employees: Users,
   Payroll: CircleDollarSign,
+  "Time In & Out": Activity,
   "Job orders": FileText,
   Reports: Activity,
 };
@@ -62,10 +64,11 @@ export async function SectionPage({ title, description, area, action, children }
   const { data: orderRows } = user ? await supabase.from("orders").select("status") : { data: [] };
   const activeOrderCount = (orderRows ?? []).filter(order => order.status !== "released" && order.status !== "cancelled").length;
   const allowedItems = isAdmin
-    ? ["Overview", "Orders", "Production", "Payments", "Customers", "Products", "Inventory", "Employees", "Payroll", "Job orders", "Reports"]
+    ? ["Overview", "Orders", "Production", "Payments", "Customers", "Products", "Inventory", "Document Routing", "Employees", "Payroll", "Job orders", "Reports"]
     : profile?.role === "front_desk"
       ? ["Overview", "Orders", "Production", "Payments", "Customers", "Job orders", "Reports"]
       : ["Production", "Job orders"];
+  if (profile?.active && profile.role!=="cutting_sewing") allowedItems.push("Time In & Out");
   const navigation = workspaceNavigation.filter(item => item.label === "Messages" || allowedItems.includes(item.label));
   const activeArea = area.split(" · ")[0];
   const displayName = profile?.full_name ?? user?.email ?? "Staff account";

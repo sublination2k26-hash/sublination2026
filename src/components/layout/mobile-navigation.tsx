@@ -6,7 +6,7 @@ import { Activity, CircleDollarSign, FileText, Layers3, Menu, Package, Palette, 
 import { SignOutButton } from "@/components/auth/sign-out-button";
 
 type Item = { label: string; href?: string };
-const icons: Record<string, typeof Menu> = { Overview: Layers3, Orders: Shirt, Production: Activity, Payments: CircleDollarSign, Customers: Users, Products: Package, Employees: Users, Payroll: CircleDollarSign, "Job orders": FileText, Reports: Activity, "Design library": Palette };
+const icons: Record<string, typeof Menu> = { Overview: Layers3, Orders: Shirt, Production: Activity, Payments: CircleDollarSign, Customers: Users, Products: Package, Employees: Users, Payroll: CircleDollarSign, "Time In & Out": Activity, "Job orders": FileText, Reports: Activity, "Design library": Palette };
 export function MobileNavigation({ items, active, name, role, onNavigate }: { items: Item[]; active: string; name: string; role: string; onNavigate?: (label: string) => void }) {
   const drawer=useRef<HTMLDialogElement>(null);
   const id=useId();

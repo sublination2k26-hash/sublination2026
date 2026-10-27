@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { garmentCategories } from "@/lib/garment-options";
+import { facebookAccountOptions } from "@/lib/facebook-account-options";
 
 type Product = { id: string; name: string; category: string; base_price: number };
 type RosterRow = { name: string; number: string; size: string };
@@ -35,7 +36,7 @@ export function OrderForm({ products, onSave, onCancel, allowArtwork }: { produc
   }}>
     <fieldset disabled={submitted} style={{border:0,padding:0,margin:0,minWidth:0,display:"contents"}}>
     <div className="form-grid"><label>Customer name *<input required value={customer} onChange={e => setCustomer(e.target.value)} placeholder="Customer or team" /></label><label>Contact number<input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="09xx xxx xxxx" /></label>
-      <label className="full-field">Facebook account<input value={facebook} onChange={e => setFacebook(e.target.value)} placeholder="Facebook name, username, or profile link" /></label>
+      <label className="full-field">Facebook account<select value={facebook} onChange={e => setFacebook(e.target.value)}><option value="">Choose account</option>{facebookAccountOptions.map(account => <option key={account} value={account}>{account}</option>)}</select></label>
       <label className="full-field">Product *<select required value={productId} onChange={e => setProductId(e.target.value)}><option value="">Choose an active product</option>{products.map(p => <option key={p.id} value={p.id}>{p.name} · {p.category}</option>)}</select></label>
       <label>Garment type *<select value={garment} onChange={e => setGarment(e.target.value)}>{garmentCategories.map(group => <optgroup key={group.label} label={group.label}>{group.options.map(option => <option key={option}>{option}</option>)}</optgroup>)}</select></label><label>Quantity *<input type="number" min="1" required value={qty} onChange={e => setQty(e.target.value)} /></label><label>Due date<input type="date" value={due} onChange={e => setDue(e.target.value)} /></label><label>Payment due date<input type="date" value={paymentDue} onChange={e=>setPaymentDue(e.target.value)}/></label><label>Down payment (₱)<input type="number" min="0" max={total} step="0.01" value={deposit} onChange={e => setDeposit(e.target.value)} /></label><div className="total-preview"><span>Calculated order total</span><b>₱{total.toLocaleString("en-PH", { maximumFractionDigits: 2 })}</b></div>
     </div>

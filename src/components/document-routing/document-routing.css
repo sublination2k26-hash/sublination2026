@@ -1,0 +1,32 @@
+.document-routing fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.document-routing h3 { margin: 18px 0 12px; }
+.document-routing .employee-form { margin-top: 24px; }
+.routing-table { overflow: auto; max-height: 440px; margin: 16px 0; }
+.routing-table table { min-width: 800px; }
+.routing-table:focus-visible { outline: 2px solid #2563eb; }
+.routing-remarks { white-space: pre-wrap; min-width: 180px; overflow-wrap: anywhere; }
+.routing-stages { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; padding: 0; }
+.routing-stages li { padding: 6px 10px; border: 1px solid var(--line, #ddd); border-radius: 8px; font-size: 12px; }
+.routing-stages .visited { background: #dcfce7; color: #14532d; border-color: #86efac; }
+.routing-document-dialog {
+  width: min(520px, calc(100vw - 32px));
+  max-height: calc(100dvh - 40px);
+  box-sizing: border-box;
+  margin: auto;
+  padding: 24px;
+  overflow-y: auto;
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: 16px;
+  background: var(--bg, #fff);
+  color: var(--ink, #182b45);
+  box-shadow: 0 24px 80px #0004;
+}
+.routing-document-dialog::backdrop { background: #0f172a99; }
+.routing-dialog-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.routing-dialog-heading h2 { margin: 0; font-size: 22px; }
+.document-routing .routing-document-dialog .employee-form { margin: 16px 0 0; padding: 0; border: 0; background: transparent; }
+.routing-document-dialog .employee-form-fields { grid-template-columns: minmax(0, 1fr); }
+.routing-document-dialog .primary-button { width: 100%; margin-top: 16px; }
+@media (max-width: 540px) {
+  .routing-document-dialog { padding: 18px; max-height: calc(100dvh - 24px); }
+}

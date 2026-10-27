@@ -18,6 +18,27 @@ Next.js application with Supabase Auth, PostgreSQL, Row Level Security, and priv
 - Admin access is allowed by the RLS policies for every role's production stage and business functions.
 - The secret key is used only in server actions to create employee auth accounts. Employee creation confirms the account directly and does not send an invitation email. Database access uses authenticated sessions and RLS.
 
+## Payroll cash advances
+
+### Additional overtime pay
+
+Apply `supabase/migrations/20261027131046_payroll_overtime.sql` after the employee cash advance ledger migration. In Payroll's **Overtime settings** section, select a draft payroll period and employee, enter overtime hours, hourly rate and optional date/reason, then click **Save overtime**. The payroll table displays the saved overtime amount and links back to these settings. Overtime pay is hours multiplied by the entered rate, rounded to centavos, and added to base pay, production pay and adjustments before cash advance deductions. Enter the full applicable overtime hourly rate; the app does not apply a multiplier or infer overtime from QR time logs. Saved overtime is retained when advance recoveries change. Approved/paid payrolls are locked and historical rows start with zero overtime.
+
+For individual employee advances, apply `supabase/migrations/20261027124647_employee_cash_advance_ledger.sql` after the payroll cash advance migration. Payroll now has **Employee cash advances**: record each employee's amount, date, reference and reason, then select a draft payroll period and save a recovery amount for each advance. Enter zero to remove a draft reservation. The database prevents recovering another employee's advance, recovering more than the available balance across payrolls, or changing an approved/paid recovery. Paid payrolls reduce unpaid balances; draft/approved payrolls reserve amounts. The ledger shows recovery history, unpaid balance, reserved deductions and available balance. Previously saved deductions remain as legacy payroll amounts and are not automatically treated as new employee debts. Advance issuance records are retained, not overwritten. Document Routing no longer has cash advance controls; any previously applied document advance columns/data are retained without deletion.
+
+Apply `supabase/migrations/20261026043803_payroll_cash_advance.sql` after the existing payroll migrations, followed by the individual ledger migration above. Approved and paid periods remain locked.
+
+## Document routing (admin only)
+
+Apply `supabase/migrations/20261027064919_document_routing.sql` in the configured Supabase project's SQL Editor after the initial schema. Open **Document Routing** in the admin sidebar (`/document-routing`). This is an independent section and does not change inventory stock, payroll, orders, or production.
+
+Create a document with its unique PR number, optional PO number, description, payee, request date and amount. Open a document to edit details, record cheque/BIR references, gross payment, tax deduction and release details. Net payment is calculated as gross minus tax. A release date requires a cheque number, recipient/signature reference and positive gross payment; it cannot precede the request date.
+
+Add dated office updates through PR, PO, COA, BAC, GSO, BADMIN, GSO BODEGA, INSPECTOR, NUMBERING, CHECKING, ACCOUNTING, ASSESSORS and CHEQUE RELEASE. The last recorded entry is the current stage; stages may repeat for returns or corrections. Earlier entries cannot be edited or deleted. Office dates and initials are manually recorded; signature references are text, not digital signatures. Payment release and office routing are recorded separately. Search by PR/PO, description or payee and filter by stage. Only active admins can read or write these records, enforced by database RLS as well as the page guard.
+
+Validation: `node --test tests/document-routing-database.test.cjs` verifies the migration, admin isolation, immutable routing entries, financial constraints and stale-edit protection in an isolated database.
+
+
 ## Materials inventory
 
 Apply `supabase/migrations/20261022071231_materials_inventory.sql` in the configured project's SQL Editor, then open **Inventory** from the admin sidebar (`/inventory`). The migration adds 20 starter supplies at zero stock. Admins can add materials, edit names, categories and units, record current quantities, and set low-stock levels. Quantities support three decimal places. Stock edits detect concurrent changes; reload before retrying a conflicting edit. Inventory access is restricted to active admins through both the page and database policies.
@@ -35,3 +56,32 @@ Apply `supabase/migrations/20261022080555_team_messages.sql` in the configured p
 ## Service production routes
 
 Apply `supabase/migrations/20261022084023_service_production_routes.sql` before adding new products. New orders follow their selected product's service: full garment uses layout, printing, heat press, cutting, sewing and QC; sub-con print only uses layout, printing and QC; sub-con print and press adds heat press; sub-con with sewing uses layout, cutting, sewing and QC. Existing order task histories are preserved. New products store an explicit service, and new orders snapshot it with their production instructions.
+
+## Sewing work tracking
+
+Apply `supabase/migrations/20261026060520_sewing_only_work_tracking.sql`. Only sewing tasks completed by an active Cutter / Sewer create new payroll work records. All staff remain eligible for payroll, and all production stages continue to track order progress. Historical work records and payroll snapshots are preserved. Non-sewing staff use the attendance workflow below for daily pay.
+
+## Attendance payroll
+
+Apply `supabase/migrations/20261027023029_attendance_based_payroll.sql` after the cash advance migration. Non-sewing employees use attendance hours (8 hours per day); weekly, semi-monthly, and monthly base rates are converted using 7, 15, and 30 day equivalents. No attendance means zero base pay. Apply the QR time attendance migration below for the current time-log interface, and record attendance in Time In & Out before creating a draft. Dates already included in payroll are locked; correct existing drafts through adjustments. Only sewing records appear in the work review queue and count toward new output pay. Existing payroll snapshots are preserved.
+
+## Time In & Out and employee QR salary
+
+Apply these pending migrations in order in the configured Supabase project (skip any already applied):
+
+1. `supabase/migrations/20261026043803_payroll_cash_advance.sql`
+2. `supabase/migrations/20261026060520_sewing_only_work_tracking.sql`
+3. `supabase/migrations/20261027023029_attendance_based_payroll.sql`
+4. `supabase/migrations/20261027023537_qr_time_attendance.sql`
+
+Open **Time In & Out** (`/attendance`). Admins manage **QR Management**, select an existing non-sewing employee, and enter their daily salary and payment method. View/download each QR as a PNG for printing or display on another screen. Disable removes the QR credential, preserving attendance and pay settings; generating it again issues a new QR.
+
+Employees open **Scan QR** (`/scan-qr`) separately from system login. Choose AM in/out or PM in/out and scan an issued employee QR code, upload its image, or use a USB scanner. Apply `supabase/migrations/20261027031811_public_qr_attendance.sql` after the QR time attendance migration to enable scanning without login. The QR token authorizes only a current-time attendance action and returns no employee identity, salary, or history. Disabled codes, inactive employees, duplicate actions, invalid sequences, and locked payroll periods are rejected. Admins still sign in to manage salaries, schedules, codes, and corrections.
+
+Admins can customize AM/PM work hours, late-arrival grace minutes, and whether late arrivals and early departures reduce pay. Defaults are 8 AM?12 PM and 1 PM?5 PM, zero grace, with proportional deductions. Grace applies per session; once exceeded, all late minutes are deducted. Missing sessions earn zero, lunch and overtime are excluded, and wages use exact paid minutes before rounding to centavos. Daily salary, schedule, grace, and deduction rules are saved with each day's log and preserved when settings change. The displayed hours are credited paid hours. Incomplete rows show provisional pay and must be completed/corrected before creating payroll.
+
+The Daily Log Viewer filters by date and exports the selected day's attendance and pay to Excel. Payroll sums saved daily net pay for non-sewers, then applies payroll adjustments and cash advance recovery. Periods already in payroll are locked; use draft adjustments for corrections. Existing payroll snapshots and legacy hours are retained, and sewing output pay stays separate.
+
+Validation: `node --test tests/attendance-database.test.cjs` runs the actual migration functions and RLS checks in an isolated PGlite PostgreSQL database; it does not modify the configured project. Run all tests with `node --test tests/*.test.cjs` and the production build with `npm run build`.
+
+The login page offers a separate **Scan QR** card linking to `/scan-qr`, with no sign-in requirement. Camera selection, start/stop controls, QR image upload and USB input are supported. Counters cover successful scans during the current visit; employee records are not publicly readable. Uploaded images are decoded in the browser. System login remains required for workspace access.
