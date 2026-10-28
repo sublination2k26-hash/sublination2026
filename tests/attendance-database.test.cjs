@@ -30,6 +30,10 @@ test('attendance migrations, time pay, snapshots, payroll locks and employee iso
     '20261027031811_public_qr_attendance.sql',
     '20261027124647_employee_cash_advance_ledger.sql',
     '20261027131046_payroll_overtime.sql',
+    '20261028023512_qr_attendance_approval.sql',
+    '20261028063252_payroll_sss_deductions.sql',
+    '20261028080216_employee_payslips.sql',
+    '20261028085057_employee_salary_info.sql',
   ]) await db.exec(fs.readFileSync(`supabase/migrations/${file}`, 'utf8'));
   const admin = '00000000-0000-0000-0000-000000000001';
   const artist = '00000000-0000-0000-0000-000000000002';
@@ -39,6 +43,36 @@ test('attendance migrations, time pay, snapshots, payroll locks and employee iso
   const actAs = async id => { await db.exec('reset role'); await db.query(`select set_config('test.uid',$1,false)`, [id ?? '']); await db.exec('set role authenticated'); };
   const row = async (sql, params = []) => (await db.query(sql, params)).rows[0];
   const save = (employee, day, a, b, c, d) => db.query('select save_attendance_log($1,$2,$3,$4,$5,$6)', [employee, day, a, b, c, d]);
+  await t.test('payslips validate amounts, retain snapshots, prevent duplicates, and restrict access', async () => {
+    const amounts = {basic_pay:8000,overtime_pay:500,bonus:200,backpay:100,sss:300,philhealth:100,pagibig:100,other_deductions:200};
+    const issue = (values = amounts, end = '2026-01-15') => db.query("select issue_employee_payslip($1,'2026-01-15','2026-01-01',$2,$3) as slip", [artist,end,JSON.stringify(values)]);
+    await actAs(admin);
+    const slip = (await issue()).rows[0].slip;
+    assert.equal(Number(slip.net_pay), 8100);
+    assert.equal(slip.employee_name, 'Artist');
+    assert.equal(slip.issued_by, admin);
+    await assert.rejects(issue(), /already exists/);
+    await assert.rejects(issue({...amounts,sss:-1}), /non-negative/);
+    await assert.rejects(issue({...amounts,sss:0.001}), /decimal places/);
+    await assert.rejects(issue({...amounts,sss:null}), /number for/);
+    await assert.rejects(issue({...amounts,sss:99999}), /check constraint/);
+    await assert.rejects(issue(amounts,'2025-12-01'), /valid issue/);
+    await db.exec('reset role');
+    await db.query("update profiles set full_name='Changed name' where id=$1", [artist]);
+    await actAs(admin);
+    assert.equal((await row('select employee_name from employee_payslips where id=$1', [slip.id])).employee_name, 'Artist');
+    await assert.rejects(db.query('update employee_payslips set basic_pay=1 where id=$1', [slip.id]), /permission denied/);
+    await actAs(artist);
+    assert.equal((await db.query('select * from employee_payslips')).rows.length, 1);
+    await actAs(printer);
+    assert.equal((await db.query('select * from employee_payslips')).rows.length, 0);
+    await actAs(artist);
+    await assert.rejects(issue(), /Only an active admin/);
+    await db.exec('reset role; set role anon');
+    await assert.rejects(issue(), /permission denied/);
+    await assert.rejects(db.query('select * from employee_payslips'), /permission denied/);
+    await actAs(admin);
+  });
   await actAs(admin);
   const qr = (await row('select save_attendance_qr($1,800) as token', [artist])).token;
   const printerQr = (await row('select save_attendance_qr($1,600) as token', [printer])).token;
@@ -109,7 +143,47 @@ test('attendance migrations, time pay, snapshots, payroll locks and employee iso
     await assert.rejects(db.query('select clock_attendance_qr($1,$2)', [qr, action]), /already recorded/);
     const ownLogs = (await db.query('select * from employee_attendance')).rows;
     assert.ok(ownLogs.every(log => log.employee_id === artist));
+    const log = ownLogs.find(log => log.approval_status === 'pending');
+    assert.equal(log.approval_status, 'pending');
+    await assert.rejects(db.query("select review_attendance_log($1,'approved')", [log.id]), /Only an active admin/);
     await actAs(admin);
+    await assert.rejects(db.query('select create_payroll_run($1,$1)', [log.work_date]), /Review pending/);
+    await db.query("select review_attendance_log($1,'approved')", [log.id]);
+    let reviewed = await row('select * from employee_attendance where id=$1', [log.id]);
+    assert.equal(reviewed.approval_status, 'approved');
+    assert.equal(reviewed.reviewed_by, admin);
+    assert.ok(reviewed.reviewed_at);
+    await assert.rejects(db.query("select review_attendance_log($1,'rejected')", [log.id]), /no longer pending/);
+    // Make time-in earlier so the second server-time punch works even within one second.
+    await db.exec('reset role');
+    await db.query(`update employee_attendance set ${action}='00:00' where id=$1`, [log.id]);
+    await actAs(artist);
+    await db.query('select clock_attendance_qr($1,$2)', [qr, action.replace('_in', '_out')]);
+    reviewed = await row('select * from employee_attendance where id=$1', [log.id]);
+    assert.equal(reviewed.approval_status, 'pending');
+    assert.equal(reviewed.reviewed_by, null);
+    assert.equal(reviewed.reviewed_at, null);
+    await actAs(admin);
+    await db.query("select review_attendance_log($1,'approved')", [log.id]);
+    await db.exec('begin');
+    const approvedRun = (await row('select create_payroll_run($1,$1) as id', [log.work_date])).id;
+    const approvedLine = await row('select * from payroll_lines where payroll_run_id=$1 and employee_id=$2', [approvedRun, artist]);
+    const approvedLog = await row('select * from employee_attendance where id=$1', [log.id]);
+    assert.equal(Number(approvedLine.base_pay), Number(approvedLog.net_pay));
+    assert.equal(Number(approvedLine.attendance_hours), Number(approvedLog.hours));
+    await db.exec('rollback');
+    // Reopen for review to exercise rejection independently of approval.
+    await db.exec('reset role');
+    await db.query("update employee_attendance set approval_status='pending' where id=$1", [log.id]);
+    await actAs(admin);
+    await db.query("select review_attendance_log($1,'rejected')", [log.id]);
+    await db.exec('begin');
+    const run = (await row('select create_payroll_run($1,$1) as id', [log.work_date])).id;
+    const line = await row('select * from payroll_lines where payroll_run_id=$1 and employee_id=$2', [run, artist]);
+    assert.equal(Number(line.attendance_hours), 0);
+    assert.equal(Number(line.base_pay), 0);
+    assert.equal((await row('select payroll_run_id from employee_attendance where id=$1', [log.id])).payroll_run_id, null);
+    await db.exec('rollback');
   });
   await t.test('payroll blocks incomplete sessions and uses saved daily net pay, excluding layout', async () => {
     await save(artist, '2026-01-08', '09:00', null, null, null);
@@ -126,7 +200,34 @@ test('attendance migrations, time pay, snapshots, payroll locks and employee iso
     const advance = (await row("select issue_employee_cash_advance($1,3000,'2026-01-01','CA-ATTENDANCE','Emergency') as id", [artist])).id;
     await db.query('select set_payroll_advance_recovery($1,$2,100)', [line.id, advance]);
     assert.equal(Number((await row('select total_pay from payroll_lines where id=$1', [line.id])).total_pay), 3598.33);
+    await db.query("update payroll_lines set sss_deduction=250,sss_note='Employee share' where id=$1", [line.id]);
+    assert.equal(Number((await row('select total_pay from payroll_lines where id=$1', [line.id])).total_pay), 3348.33);
+    await db.query('update payroll_lines set overtime_hours=2,overtime_rate=100,adjustments=50 where id=$1', [line.id]);
+    assert.equal(Number((await row('select total_pay from payroll_lines where id=$1', [line.id])).total_pay), 3598.33);
+    await assert.rejects(db.query('update payroll_lines set sss_deduction=-1 where id=$1', [line.id]), /check constraint/);
+    await assert.rejects(db.query("update payroll_lines set sss_deduction='NaN' where id=$1", [line.id]), /check constraint/);
+    await actAs(artist);
+    assert.equal((await db.query('update payroll_lines set sss_deduction=0 where id=$1 returning id', [line.id])).rows.length, 0);
+    await actAs(admin);
     await db.query('select approve_payroll_run($1)', [run]);
+    for (const employee of [artist, printer, sewer]) {
+      await actAs(employee);
+      const ownLines = (await db.query('select * from payroll_lines')).rows;
+      assert.ok(ownLines.length > 0);
+      assert.ok(ownLines.every(item => item.employee_id === employee));
+      assert.equal((await row('select status from payroll_runs where id=$1', [run])).status, 'approved');
+      assert.equal((await db.query('update payroll_lines set sss_deduction=0 where payroll_run_id=$1 returning id', [run])).rows.length, 0);
+    }
+    await db.exec('reset role');
+    await db.query('update profiles set active=false where id=$1', [artist]);
+    await actAs(artist);
+    assert.equal((await db.query('select * from payroll_lines')).rows.length, 0);
+    assert.equal((await db.query('select * from payroll_runs')).rows.length, 0);
+    assert.equal((await db.query('select * from employee_payslips')).rows.length, 0);
+    await db.exec('reset role');
+    await db.query('update profiles set active=true where id=$1', [artist]);
+    await actAs(admin);
+    await assert.rejects(db.query('update payroll_lines set sss_deduction=0 where id=$1', [line.id]), /Only draft/);
     await assert.rejects(db.query('update payroll_lines set cash_advance=200 where id=$1', [line.id]), /Only draft/);
   });
   await t.test('public QR attendance works without login and grants no employee data access', async () => {
@@ -149,7 +250,12 @@ test('attendance migrations, time pay, snapshots, payroll locks and employee iso
     await assert.rejects(db.query('select * from employee_compensation'), /permission denied/);
     await assert.rejects(db.query('select * from employee_attendance_qr'), /permission denied/);
     await assert.rejects(db.query('select save_attendance_qr($1,100)', [visitor]), /permission denied/);
+    await assert.rejects(db.query("select review_attendance_log(gen_random_uuid(),'approved')"), /permission denied/);
     await actAs(admin);
+    const publicLog = await row('select * from employee_attendance where employee_id=$1', [visitor]);
+    assert.equal(publicLog.approval_status, 'pending');
+    await db.query("select review_attendance_log($1,'approved')", [publicLog.id]);
+    assert.equal((await row('select approval_status from employee_attendance where id=$1', [publicLog.id])).approval_status, 'approved');
     await db.query('delete from employee_attendance_qr where employee_id=$1', [visitor]);
     await db.exec('reset role');
     await db.query("select set_config('test.uid','',false)");

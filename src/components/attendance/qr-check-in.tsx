@@ -31,7 +31,7 @@ export function QrCheckIn() {
     try {
       const result = await db.rpc("public_clock_attendance_qr", { p_token: clean, p_action: action });
       if (result.error) throw result.error;
-      setToken(""); setNotice(`${punchLabels[action]} recorded at ${new Date().toLocaleTimeString("en-PH", { timeZone: "Asia/Manila" })}.`);
+      setToken(""); setNotice(`${punchLabels[action]} recorded at ${new Date().toLocaleTimeString("en-PH", { timeZone: "Asia/Manila" })}. Pending admin approval.`);
       setDay(manilaToday());
       setCounts(value => ({ am: value.am + (action.startsWith("am_") ? 1 : 0), pm: value.pm + (action.startsWith("pm_") ? 1 : 0), last: punchLabels[action] }));
     } catch (reason) { setError(errorMessage(reason)); }
@@ -59,7 +59,7 @@ export function QrCheckIn() {
     <div className="qr-check-content"><div className="qr-check-title"><div><span className="qr-check-eyebrow">EMPLOYEE ATTENDANCE</span><h1><QrCode size={30}/>Scan QR</h1><p>Check in and out using your personalized QR code.</p></div><span>{new Date(`${day}T12:00:00+08:00`).toLocaleDateString("en-PH", { dateStyle: "long", timeZone: "Asia/Manila" })}</span></div>
       <div className="qr-check-stats">{stats.map(stat => <div key={stat.label}><b>{stat.value}</b><span>{stat.label}</span></div>)}</div>
       <section className="qr-check-panel" aria-label="Attendance QR scanner" aria-busy={busy}>
-        <p className="qr-check-account">Scan your employee QR code to record attendance. No login required.</p>
+        <p className="qr-check-account">Scan your employee QR code to record attendance. Admin approval is required before attendance counts toward payroll. No login required.</p>
         {!db && <p className="qr-check-error">Attendance is not configured yet. Contact your admin.</p>}
         {error && <p className="qr-check-error" role="alert">{error}</p>}{notice && <p className="qr-check-success" role="status">{notice}</p>}
         <div className={`qr-check-status ${cameraReady ? "active" : ""}`} role="status">{cameraReady ? <Camera size={21}/> : <CameraOff size={21}/>}Scanner {cameraReady ? "Active" : cameraOn ? "Starting…" : "Inactive"}</div>

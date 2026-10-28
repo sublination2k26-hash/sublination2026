@@ -39,6 +39,7 @@ const navigationIcons = {
   Messages: MessageSquare,
   Employees: Users,
   Payroll: CircleDollarSign,
+  "My Salary": CircleDollarSign,
   "Time In & Out": Activity,
   "Job orders": FileText,
   Reports: Activity,
@@ -69,6 +70,7 @@ export async function SectionPage({ title, description, area, action, children }
       ? ["Overview", "Orders", "Production", "Payments", "Customers", "Job orders", "Reports"]
       : ["Production", "Job orders"];
   if (profile?.active && profile.role!=="cutting_sewing") allowedItems.push("Time In & Out");
+  if (profile?.active && profile.role !== "admin") allowedItems.push("My Salary");
   const navigation = workspaceNavigation.filter(item => item.label === "Messages" || allowedItems.includes(item.label));
   const activeArea = area.split(" · ")[0];
   const displayName = profile?.full_name ?? user?.email ?? "Staff account";

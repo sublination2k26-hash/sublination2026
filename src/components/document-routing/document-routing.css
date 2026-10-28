@@ -4,6 +4,7 @@
 .routing-table { overflow: auto; max-height: 440px; margin: 16px 0; }
 .routing-table table { min-width: 800px; }
 .routing-table:focus-visible { outline: 2px solid #2563eb; }
+.routing-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .routing-remarks { white-space: pre-wrap; min-width: 180px; overflow-wrap: anywhere; }
 .routing-stages { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; padding: 0; }
 .routing-stages li { padding: 6px 10px; border: 1px solid var(--line, #ddd); border-radius: 8px; font-size: 12px; }

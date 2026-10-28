@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { printRoutingDocument } from "@/lib/document-routing-print";
 import { documentColumns, latestStage, routingStages, type RoutingDocument, type RoutingEntry } from "@/lib/document-routing";
 import "./document-routing.css";
 
@@ -33,6 +34,11 @@ export function DocumentRoutingManager({ initialDocuments }: { initialDocuments:
   const document = documents.find(item => item.id === selected);
   const entries = [...(document?.document_routing_entries ?? [])].sort((a, b) => a.created_at.localeCompare(b.created_at));
   function choose(id: string | null) { setSelected(id); setError(""); setNotice(""); setFormKey(key => key + 1); setFormOpen(true); }
+  function print(item: RoutingDocument) {
+    setError("");
+    try { printRoutingDocument(item); }
+    catch (cause) { setError(message(cause)); }
+  }
   async function save(event: FormEvent<HTMLFormElement>, routing = false) {
     event.preventDefault();
     if (saving.current) return;
@@ -82,7 +88,7 @@ export function DocumentRoutingManager({ initialDocuments }: { initialDocuments:
       <label>Current office<select value={stageFilter} onChange={event => setStageFilter(event.target.value)}><option value="">All stages</option>{routingStages.map(stage => <option key={stage}>{stage}</option>)}</select></label>
     </div>
     <div className="employee-table-wrap routing-table" role="region" aria-label="Document register" tabIndex={0}><table><thead><tr><th>PR / PO</th><th>DESCRIPTION / PAYEE</th><th>REQUEST DATE</th><th>AMOUNT</th><th>CURRENT STAGE</th><th>PAYMENT</th><th>ACTION</th></tr></thead><tbody>
-      {shown.map(item => <tr key={item.id}><td><b>{item.pr_number}</b><br/>{item.po_number || "—"}</td><td>{item.title}<br/>{item.payee}</td><td>{item.request_date}</td><td>{money(item.amount)}</td><td>{latestStage(item)}</td><td>{item.released_date ? `Released ${item.released_date}` : "Pending"}</td><td><button className="secondary-button" disabled={busy} onClick={() => choose(item.id)} aria-label={`Open ${item.pr_number}`}>Open</button></td></tr>)}
+      {shown.map(item => <tr key={item.id}><td><b>{item.pr_number}</b><br/>{item.po_number || "—"}</td><td>{item.title}<br/>{item.payee}</td><td>{item.request_date}</td><td>{money(item.amount)}</td><td>{latestStage(item)}</td><td>{item.released_date ? `Released ${item.released_date}` : "Pending"}</td><td><div className="routing-actions"><button className="secondary-button" disabled={busy} onClick={() => choose(item.id)} aria-label={`Open ${item.pr_number}`}>Open</button><button type="button" className="secondary-button" disabled={busy} onClick={() => print(item)} aria-label={`Print ${item.pr_number}`}>Print</button></div></td></tr>)}
     </tbody></table>{shown.length === 0 && <p className="empty-inline">No documents match. Select New document or adjust the filters.</p>}</div>
     <dialog ref={dialog} className="routing-document-dialog" aria-labelledby={titleId} onCancel={event => { if (saving.current) event.preventDefault(); else setFormOpen(false); }} onClose={() => setFormOpen(false)}>
     <div className="routing-dialog-heading"><h2 id={titleId}>{document ? `Edit ${document.pr_number}` : "New document"}</h2><button type="button" className="secondary-button" disabled={busy} onClick={() => setFormOpen(false)} aria-label="Close document form">Close</button></div>

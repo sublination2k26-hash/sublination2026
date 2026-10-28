@@ -11,6 +11,7 @@ export const workspaceNavigation = [
   { label: "Employees", href: "/employees" },
   { label: "Time In & Out", href: "/attendance" },
   { label: "Payroll", href: "/payroll" },
+  { label: "My Salary", href: "/salary" },
   { label: "Job orders", href: "/dashboard?view=Job%20orders" },
   { label: "Reports", href: "/dashboard?view=Reports" },
   { label: "Quality control", href: "/quality-control" },
