@@ -1,0 +1,17 @@
+"use client";
+import { useState } from "react";
+import { customerPaymentHistory, downPayment, type CustomerPaymentEntry } from "@/lib/payment-tracking";
+import { ExcelExport } from "@/components/ui/excel-export";
+const peso = (value: number) => value.toLocaleString("en-PH", {style: "currency", currency: "PHP"});
+export function CustomerPaymentHistory({orders,initialCustomerId="",onOpen}: {orders: {id: string; customerId: string; customer: string; total: number; status: string; payments: CustomerPaymentEntry[]}[]; initialCustomerId?: string; onOpen: (orderId: string)=>void}) {
+  const [customerId,setCustomerId] = useState(initialCustomerId);
+  const customers = [...new Map(orders.map(order => [order.customerId, order.customer])).entries()];
+  const rows = customerPaymentHistory(orders,customerId);
+  const balance = orders.filter(order => (!customerId || order.customerId === customerId) && order.status !== "cancelled").reduce((sum,order) => sum + Math.max(0,order.total-order.payments.reduce((paid,payment) => paid+payment.amount,0)),0);
+  return <section className="panel"><div className="panel-heading"><div><div className="section-kicker">CUSTOMER PAYMENT HISTORY</div><h2>Every dated down payment</h2></div><ExcelExport title="Customer payment history" columns={[{header:"Payment date",width:18},{header:"Customer",width:28},{header:"Job order",width:22},{header:"Type",width:22},{header:"Method",width:20},{header:"Amount (PHP)",width:20,format:"#,##0.00"},{header:"Reference / note",width:40},{header:"Recorded at (PH)",width:28}]} rows={rows.map(row=>[row.date,row.customer,row.order,row.kind==="down_payment"?"Down payment":"Balance / payment",row.method,row.amount,row.note,new Date(row.recordedAt).toLocaleString("en-PH",{timeZone:"Asia/Manila"})])}/></div>
+    <label className="notes-label">Customer<select value={customerId} onChange={event=>setCustomerId(event.target.value)}><option value="">All customers</option>{customers.map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label>
+    <div className="balance-strip"><span>Total down payments <b>{peso(downPayment(rows))}</b></span><span>Total paid <b>{peso(rows.reduce((sum,row)=>sum+row.amount,0))}</b></span><span>Remaining balance <b>{peso(balance)}</b></span><span>Transactions <b>{rows.length}</b></span></div>
+    <div className="table-wrap"><table><thead><tr><th>PAYMENT DATE</th><th>CUSTOMER</th><th>JOB ORDER</th><th>TYPE</th><th>METHOD</th><th>REFERENCE / NOTE</th><th>AMOUNT</th><th>RECORDED AT (PH)</th></tr></thead><tbody>{rows.map(row=><tr key={row.id}><td>{row.date}</td><td>{row.customer}</td><td><button className="link-button" onClick={()=>onOpen(row.order)}>{row.order}</button></td><td>{row.kind==="down_payment"?"Down payment":"Balance / payment"}</td><td>{row.method}</td><td>{row.note}</td><td><b>{peso(row.amount)}</b></td><td>{new Date(row.recordedAt).toLocaleString("en-PH",{timeZone:"Asia/Manila"})}</td></tr>)}</tbody></table></div>
+    {!rows.length && <p className="empty-inline">No payments recorded for this customer yet.</p>}
+  </section>;
+}

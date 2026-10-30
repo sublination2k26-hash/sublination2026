@@ -14,3 +14,10 @@ export const documentColumns = "*,document_routing_entries(*)";
 export function latestStage(document: RoutingDocument) {
   return [...document.document_routing_entries].sort((a, b) => b.created_at.localeCompare(a.created_at))[0]?.stage ?? "P.R.";
 }
+
+// Cheque release follows completion of every preceding office.
+export function pendingRoutingStages(entries: RoutingEntry[]) {
+  return routingStages.filter(stage => stage !== "CHEQUE RELEASE" &&
+    !entries.filter(entry => entry.stage === stage)
+      .sort((a, b) => b.created_at.localeCompare(a.created_at))[0]?.forwarded_date);
+}

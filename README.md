@@ -11,6 +11,28 @@ Next.js application with Supabase Auth, PostgreSQL, Row Level Security, and priv
 5. Add `http://localhost:3000/auth/callback` to Supabase Auth's allowed redirect URLs for local development. Set `NEXT_PUBLIC_SITE_URL` to the deployed app URL when deploying.
 6. Run `npm install`, then `npm run dev`, and open `http://localhost:3000`.
 
+## Personal loan reminders in Document Routing
+
+Apply `supabase/migrations/20261029192517_document_routing_loans.sql` in the configured Supabase project's SQL Editor before opening **Document Routing → Loan reminders / Mga pautang**. This additive migration creates independent admin-only loan and payment tables. It does not change document disbursements or customer payments.
+
+Add the borrower's name, original principal, start date, monthly due day, first due date, and fixed monthly interest in pesos. Due days 29–31 fall on the last day of shorter months and recover the original day afterward. Reminders use the Manila date, show unpaid interest by month, and carry unpaid amounts forward without compounding. Reminders are displayed inside this page; no SMS, email, or background alerts are sent.
+
+Record principal and interest separately; choose the due date covered by each interest payment. Partial payments are supported. Full principal repayment stops later monthly interest; earlier unpaid interest must still be settled. **Fully paid — Remove from active list** archives a settled loan, retaining history under **Archived / Paid**. Restore a loan before correcting an archived payment; **Undo payment** restores its balance and reminders.
+
+Validation: `node --test tests/loan-tracking.test.cjs tests/loan-tracking-database.test.cjs` covers date calculations, partial payments, payoff, archive rules, payment bounds, retry IDs, and admin/anonymous access in an isolated PostgreSQL-compatible PGlite database. The configured live project's migration still needs to be applied if the CLI/connector has no project access.
+
+## Artist activities, mentions, and replies
+
+Apply `supabase/migrations/20261030081041_artist_activity_message_replies_mentions.sql` after the existing payroll/task attribution and team messages migrations. Refresh the app afterward. This migration must be applied to the same Supabase project configured in `.env.local`.
+
+At the top of **Payroll**, **Artist / layout work tracking** shows existing layout tasks, the assigned/starting/completing employee, job order, product, quantity, status, and Philippine start/completion times. Filter by artist and work status, then use **Refresh artist work** to retrieve changes. This view reads existing production tasks and does not need the new migration. Unattributed tasks are labeled rather than assigned to a guessed employee.
+
+After applying the migration, artist layout completions also create pending-review activity records in **Payroll → Sewing and artist work review queue**, including employee, order, item quantity, start/completion time, and rework. Admin reviews these records; approved records attach to newly created payrolls. Artist pay continues to come from approved attendance. Layout quantities do not create extra piece pay, and existing payroll snapshots are preserved. Only future status changes create ledger entries; historical work is not invented or backfilled.
+
+**Team messages** automatically shows layout starts, completions, and returns for correction, attributed to the account performing the action. Choose **Mention an account**, find an active employee, and select their name to tag them. Recipients see **You were mentioned** in the shared conversation. Choose **Reply** on any message or activity post to compose a reply with its quoted context; older parents remain visible in replies even outside the currently loaded history. Mentions and replies stay in the shared conversation; no email or push notifications are sent.
+
+Validation: `node --test tests/artist-activity-messages.test.cjs tests/team-messages.test.cjs tests/sewing-assignments.test.cjs tests/attendance-database.test.cjs`.
+
 ## Accounts and permissions
 
 - Sign in at `/login` with Supabase Auth.
@@ -18,7 +40,21 @@ Next.js application with Supabase Auth, PostgreSQL, Row Level Security, and priv
 - Admin access is allowed by the RLS policies for every role's production stage and business functions.
 - The secret key is used only in server actions to create employee auth accounts. Employee creation confirms the account directly and does not send an invitation email. Database access uses authenticated sessions and RLS.
 
+## Customer payments and partial pickups
+
+The dashboard's Customers table and Excel export show initial downpayments separately from total paid and remaining balance. Downpayment totals use payments recorded as `Initial down payment`; follow-up payments contribute to total paid.
+
+Apply `supabase/migrations/20261029025401_order_piece_releases.sql` before using partial pickups. Open a ready-for-release order and use **Piece releases** to enter the quantity, recipient, and optional notes. Each pickup records the staff member and time. The order stays ready for release until all pieces have been handed over. Full payment and approved QC are required for every pickup; admins can record an exception reason for that pickup. Quantity edits and item additions/removals are blocked after the first pickup. Existing released orders are shown as fully handed over without inventing pickup history.
+
+Apply `supabase/migrations/20261029030118_pickup_release_dates.sql` after the piece release migration to enable selectable pickup dates. Choose **Release all remaining** or **Choose quantity**, then enter the release date and recipient. Pickup history shows both the selected date and the actual recording timestamp. Existing pickup dates are preserved using Manila time.
+
+Validation: `node --test tests/payment-tracking.test.cjs tests/piece-releases.test.cjs`.
+
 ## Payroll cash advances
+
+Apply `supabase/migrations/20261029043232_automatic_employee_sss.sql` to enable **Automatic SSS per employee** in Payroll. Admin sets an employee share per payroll cutoff for each employee, including sewers. New payroll lines snapshot that setting and subtract it from net pay automatically. Unset settings deduct zero. Updating settings affects future payrolls only; existing drafts can be corrected using the period-specific SSS adjustment, and approved/paid totals remain unchanged. Payroll shows gross earnings, total SSS/cash advance deductions, and net pay for the selected period. This is a configured cutoff amount, not an automatic statutory contribution calculation or remittance.
+
+Validation: `node --test tests/automatic-sss.test.cjs`.
 
 ### Additional overtime pay
 
@@ -96,3 +132,29 @@ For employee access, also apply `supabase/migrations/20261028085057_employee_sal
 Apply `supabase/migrations/20261028080216_employee_payslips.sql` after the existing migrations. In **Payroll → Manage Payslips**, choose **Issue New Payslip**, select an employee and pay period, and enter earnings and deductions. Position is filled automatically; there is no Department field. The database assigns the payslip number and calculates net pay. Issued records preserve employee details and amounts and cannot be edited from the app. One payslip is allowed per employee for the same period.
 
 Use **PDF** on an issued record to download its payslip. Payslips are standalone salary records, not proof of payment, and do not update payroll runs or cash advance balances. Backpay is entered manually after review; there is no automatic approved-backpay system. SSS, PhilHealth, and Pag-IBIG amounts are manually entered employee deductions.
+
+### Sewer assignments and Front Desk handoffs
+
+Apply `supabase/migrations/20261029065538_sewer_assignments.sql` after the earlier migrations, then apply `supabase/migrations/20261029074932_sewer_self_claim.sql`. Skip migrations already applied. Open **Sewing assignments** (`/sewing`) as Admin, Front Desk, or Cutting / Sewing staff. Order details also link to the order's sewing assignments.
+
+Every active sewing order appears automatically in all sewers' shared queue, including its instructions, upstream stage status, and total unclaimed quantity. Each sewer enters how many pieces they want and clicks **Assign to me**. The authenticated sewer is both the assignee and assignment recorder; they cannot claim for another account. Claims and Front Desk reservations share a database task lock, preventing the combined quantity from exceeding the order item. A stale balance is rejected if another sewer has already taken the pieces. Claiming reserves pieces and does not record a handoff, completion, or payroll output. Individual assignment rows and output histories remain private to their sewer, Admin, and Front Desk; only aggregate availability is shared.
+
+Finish the item's Layout, Printing, Heat Press, and Cutting tasks (only stages included in the order apply), then Front Desk records partial or full materials handoffs. Each sewer records their own partial completions up to the pieces handed over. Refresh retrieves other staff's latest changes.
+
+The new-order form describes the **Automatic shared sewing queue**; no sewer selection is required. An optional Front Desk reservation can still reserve pieces for an employee, leaving the rest available for self-claim. Assignment retries reuse their original request IDs without duplicating the order or previously saved assignments. Saving a sewing order opens that order in **Sewing assignments**. Sewer screens refresh every 15 seconds while visible and when their window receives focus; manual Refresh remains available. Existing open sewing orders also enter the shared queue unless they have legacy output already recorded. Print-only services do not enter sewing queues.
+
+Admin and Front Desk see all assignments, unassigned pieces, handed-over pieces, completed output, quantities still awaiting handoff, and quantities ready to sew. Handoffs and completions retain their actor, time, notes, and quantities. New sewing tasks require assignment/handoff/output tracking; pre-existing tasks retain their original behavior until assigned. Assigned item quantities/products and task identities are locked to preserve reconciliation. Assigned tasks cannot be deleted while their assignment history exists.
+
+Each output batch creates one pending-review payroll work record with that sewer's configured rate. Completing all pieces automatically completes the Sewing task without creating another full-order output record; QC is still separate. Rework has a separate action and does not increase the completed count or earn piece pay by default. After rework, the existing production completion action can close a returned Sewing stage. Payroll snapshots are unchanged.
+
+**Create example order** creates or reopens one clearly labeled sample: **24 Barangay Eagles jerseys**, full production route, example sizes, and a suggested 10/8/6 split. Actual sewer accounts can claim their own quantities; the example does not invent employee accounts or mark upstream work finished. Example output starts excluded from piece pay. It is a real, labeled order in the workspace, so it appears in order lists and reports.
+
+Validation: `node --test tests/sewing-assignments.test.cjs` exercises the migration in isolated PostgreSQL (PGlite), including RLS, handoff gates, separate employee quantities/rates, retry handling, QC gating, and example creation. This does not apply the migration to the configured Supabase project.
+
+In **Sewing assignments → Sewing details & reports**, filter by job order and optionally by sewer. The report shows each assignment's sewer, assigning staff member/date, quantities assigned/handed over/completed/remaining, rework, and last output recorder/date. **Excel — quantities** exports the quantity breakdown and instructions; **Excel — full history** exports each assignment, handoff, completion, and rework entry with its recorder, Philippine timestamp, notes, and record IDs. **Print sewing details** opens an A4 landscape report with the quantity summary and complete assignment histories (also usable as Save as PDF). Excel files have landscape print setup and repeating headers. Sewer accounts report only their own assignments under the existing database policies. These reports show recorded output, not payroll or QC approval. No additional SQL migration is needed for reporting.
+
+### Dated customer down payments
+
+Apply `supabase/migrations/20261029082024_dated_customer_downpayments.sql` for dated installment tracking. When creating an order, enter the initial **Down payment date**. For every later installment, open the order → **Add payment**, choose **Down payment / installment**, and enter its own date, amount, method, and receipt note. Each installment inserts a separate payment row; earlier entries stay intact. The date received is separate from the timestamp when staff entered the record. Existing receipt dates are backfilled using Philippine time, and existing initial deposits retain their down-payment classification. Other historical payments keep their previous generic classification.
+
+Open **Customers → Payment history** for all receipts from that customer's orders, or **Payments** to filter across customers. The history lists every dated entry in chronological order (for example October 11, 20, and 26), and displays total down payments, total paid, and remaining balance. **Export Excel** exports each receipt separately with its payment type, date, amount, reference, and entry timestamp. Repeated saves reuse the receipt request ID, and database balance checks prevent overpayment. No existing receipts are merged or deleted. Tests: `node --test tests/dated-customer-payments.test.cjs tests/payment-tracking.test.cjs`.

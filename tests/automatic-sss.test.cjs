@@ -1,0 +1,44 @@
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const { PGlite } = require('@electric-sql/pglite');
+
+test('SSS settings snapshot per cutoff across roles and preserve historical payrolls', async t => {
+  const db = new PGlite(); t.after(() => db.close());
+  await db.exec(`
+    create role anon; create role authenticated; create schema auth;
+    create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('test.uid',true),'')::uuid $$;
+    create table profiles(id uuid primary key,role text,active boolean default true);
+    insert into profiles values ('00000000-0000-0000-0000-000000000001','admin',true),('00000000-0000-0000-0000-000000000002','cutting_sewing',true),('00000000-0000-0000-0000-000000000003','front_desk',true);
+    create function current_app_role() returns text language sql stable security definer set search_path='' as $$select role from public.profiles where id=auth.uid() and active$$;
+    create table payroll_lines(id uuid primary key default gen_random_uuid(),employee_id uuid references profiles,base_pay numeric default 1000,production_pay numeric default 200,overtime_hours numeric default 2,overtime_rate numeric default 100,adjustments numeric default 50,cash_advance numeric default 100,sss_deduction numeric default 0,sss_note text default '',total_pay numeric default 1350);
+    insert into payroll_lines(employee_id) values ('00000000-0000-0000-0000-000000000002');
+    grant usage on schema auth to authenticated;
+    grant select,insert on payroll_lines to authenticated;
+  `);
+  await db.exec(fs.readFileSync('supabase/migrations/20261029043232_automatic_employee_sss.sql','utf8'));
+  const asUser = async n => { await db.exec('reset role'); await db.query("select set_config('test.uid',$1,false)", [`00000000-0000-0000-0000-00000000000${n}`]); await db.exec('set role authenticated'); };
+  const employee = '00000000-0000-0000-0000-000000000002';
+  await asUser(1);
+  await db.query("insert into employee_sss_settings(employee_id,amount,note) values ($1,400,'Per cutoff')",[employee]);
+  await assert.rejects(db.query('update employee_sss_settings set amount=-1'),/check constraint/);
+  await assert.rejects(db.query("update employee_sss_settings set amount='NaN'"),/check constraint/);
+  const first = (await db.query('insert into payroll_lines(employee_id) values ($1) returning *',[employee])).rows[0];
+  assert.equal(Number(first.sss_deduction),400);
+  assert.equal(Number(first.total_pay),950);
+  assert.equal(first.sss_note,'Per cutoff');
+  await db.query('update employee_sss_settings set amount=500 where employee_id=$1',[employee]);
+  const second = (await db.query('insert into payroll_lines(employee_id) values ($1) returning *',[employee])).rows[0];
+  assert.equal(Number(second.total_pay),850);
+  assert.equal(Number((await db.query('select sss_deduction from payroll_lines where id=$1',[first.id])).rows[0].sss_deduction),400);
+  const desk = (await db.query("insert into payroll_lines(employee_id) values ('00000000-0000-0000-0000-000000000003') returning *")).rows[0];
+  assert.equal(Number(desk.sss_deduction),0);
+  await db.query("insert into employee_sss_settings(employee_id,amount) values ('00000000-0000-0000-0000-000000000003',250)");
+  const deskConfigured = (await db.query("insert into payroll_lines(employee_id) values ('00000000-0000-0000-0000-000000000003') returning *")).rows[0];
+  assert.equal(Number(deskConfigured.total_pay),1100);
+  assert.equal(Number((await db.query('select count(*) as n from payroll_lines where sss_deduction=0')).rows[0].n),2);
+  await asUser(2);
+  assert.equal((await db.query('select * from employee_sss_settings')).rows.length,0);
+  await assert.rejects(db.query('insert into employee_sss_settings(employee_id,amount) values ($1,1)',[employee]),/row-level security/);
+  assert.equal((await db.query('update employee_sss_settings set amount=1 returning *')).rows.length,0);
+});

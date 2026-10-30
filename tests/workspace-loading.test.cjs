@@ -24,3 +24,12 @@ test('grouping keeps related records separate and preserves payment and inspecti
   assert.deepEqual(Array.from(groups.get('b'), row => row.id), [2]);
   assert.equal(groups.get('missing'), undefined);
 });
+
+test('complete report loading reads all pages and rejects errors instead of exporting partial history', async () => {
+  const source=Array.from({length:1205},(_,id)=>({id}));
+  const pages=[];
+  const rows=await exported.readAllRows(async(from,to)=>{pages.push([from,to]);return {data:source.slice(from,to+1),error:null};});
+  assert.equal(rows.length,1205); assert.equal(rows[1204].id,1204);
+  assert.deepEqual(pages,[[0,499],[500,999],[1000,1499]]);
+  await assert.rejects(exported.readAllRows(async(from)=>from===0?{data:source.slice(0,500),error:null}:{data:null,error:{message:'Connection failed'}}),/Connection failed/);
+});

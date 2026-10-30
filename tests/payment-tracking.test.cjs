@@ -12,6 +12,32 @@ vm.runInNewContext(ts.transpileModule(
 const { paymentTracking, customerPaymentSummaries } = exported;
 const today = '2026-10-21';
 
+test('all dated customer down payments remain separate and aggregate without mixing customers or balance payments',()=>{
+  const payments=[
+    {id:'c',amount:500,date:'2026-10-26',kind:'down_payment',method:'Cash',note:'Third deposit',recordedAt:'2026-10-29T03:00:00Z'},
+    {id:'a',amount:1000,date:'2026-10-11',kind:'down_payment',method:'Cash',note:'First deposit',recordedAt:'2026-10-29T01:00:00Z'},
+    {id:'b',amount:1500,date:'2026-10-20',kind:'down_payment',method:'GCash',note:'Second deposit',recordedAt:'2026-10-29T02:00:00Z'},
+    {id:'d',amount:2000,date:'2026-10-27',kind:'payment',method:'Cash',note:'Balance',recordedAt:'2026-10-29T04:00:00Z'},
+  ];
+  const orders=[{id:'JO-1',customerId:'a',customer:'Alex',payments},{id:'JO-2',customerId:'b',customer:'Alex',payments:[{...payments[0],id:'other'}]}];
+  const history=exported.customerPaymentHistory(orders,'a');
+  assert.deepEqual(Array.from(history,row=>row.date),['2026-10-11','2026-10-20','2026-10-26','2026-10-27']);
+  assert.equal(exported.downPayment(history),3000);
+  assert.equal(history.reduce((sum,row)=>sum+row.amount,0),5000);
+  assert.equal(exported.customerPaymentHistory(orders).length,5);
+  assert.equal(payments[0].id,'c');
+});
+
+test('customer downpayment includes deposits only, while total paid includes follow-up payments', () => {
+  const [customer] = customerPaymentSummaries([
+    { customerId: 'a', customer: 'Alex', phone: '', total: 1000, paymentDue: '', status: 'confirmed', payments: [{ amount: 200, note: 'Initial down payment' }, { amount: 300, note: 'Follow-up' }] },
+    { customerId: 'a', customer: 'Alex', phone: '', total: 500, paymentDue: '', status: 'confirmed', payments: [{ amount: 100, note: 'Initial down payment' }] },
+  ], [], today);
+  assert.equal(customer.downpayment, 300);
+  assert.equal(customer.paid, 600);
+  assert.equal(customer.balance, 900);
+});
+
 test('tracks partial payments and removes overdue status after settlement', () => {
   const partial = paymentTracking(1000, [{ amount: 250 }], '2026-10-20', today);
   assert.equal(partial.balance, 750);

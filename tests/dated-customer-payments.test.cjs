@@ -1,0 +1,58 @@
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const {randomUUID}=require('node:crypto');
+const {PGlite}=require('@electric-sql/pglite');
+
+test('dated customer installments preserve each payment, initial deposit date, permissions and retry safety',async t=>{
+  const db=new PGlite();t.after(()=>db.close());
+  const id=n=>`00000000-0000-0000-0000-${String(n).padStart(12,'0')}`;
+  await db.exec(`create role anon;create role authenticated;create schema auth;create table auth.users(id uuid primary key);
+    create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('test.uid',true),'')::uuid$$;
+    grant usage on schema auth to authenticated,anon;`);
+  await db.exec(fs.readFileSync('supabase/migrations/202610170001_initial_schema.sql','utf8').replace('create extension if not exists pgcrypto;','').split('-- Create a private storage bucket')[0]);
+  for(const file of ['202610190002_dashboard_persistence.sql','202610190003_catalog_orders.sql','20261022012741_customer_facebook_contact.sql'])await db.exec(fs.readFileSync('supabase/migrations/'+file,'utf8'));
+  for(const [n,role] of [[1,'admin'],[2,'front_desk'],[3,'artist']]){
+    await db.query('insert into auth.users values($1)',[id(n)]);
+    await db.query('insert into profiles(id,full_name,role) values($1,$2,$3)',[id(n),'Staff '+n,role]);
+  }
+  await db.exec('grant select,insert,update,delete on all tables in schema public to authenticated;grant usage,select on all sequences in schema public to authenticated;');
+  const product=(await db.query("insert into products(name,category,production_type,base_price) values('Jersey','Team','full_garment',500) returning id")).rows[0].id;
+  const oldCustomer=(await db.query("insert into customers(full_name) values('Existing') returning id")).rows[0].id;
+  const oldOrder=(await db.query('insert into orders(customer_id,total) values($1,500) returning id',[oldCustomer])).rows[0].id;
+  const historical=(await db.query("insert into payments(order_id,amount,method,notes,received_at) values($1,100,'cash','Initial down payment','2026-10-10T17:00:00Z') returning id,received_at",[oldOrder])).rows[0];
+  await db.exec(fs.readFileSync('supabase/migrations/20261029082024_dated_customer_downpayments.sql','utf8'));
+  const backfill=(await db.query('select payment_on::text,payment_kind,received_at from payments where id=$1',[historical.id])).rows[0];
+  assert.equal(backfill.payment_on,'2026-10-11');assert.equal(backfill.payment_kind,'down_payment');assert.deepEqual(backfill.received_at,historical.received_at);
+  const asUser=async n=>{await db.exec('reset role');await db.query("select set_config('test.uid',$1,false)",[n?id(n):'']);await db.exec('set role authenticated');};
+  await asUser(2);
+  const create=(amount,date)=>db.query("select create_catalog_order_with_deposit_date('Team A','',$1,10,current_date+7,$2,'','Jerseys','',$3) as id",[product,amount,date]);
+  const order=(await create(1000,'2026-10-11')).rows[0].id;
+  const pay=(amount,date,request=randomUUID(),kind='down_payment')=>db.query("select record_customer_payment($1,$2,'gcash',$3,$4,'Receipt',$5) as id",[order,amount,kind,date,request]);
+  const second=(await pay(1500,'2026-10-20')).rows[0].id;
+  await pay(500,'2026-10-26');
+  assert.equal((await pay(1500,'2026-10-20',second)).rows[0].id,second);
+  await assert.rejects(pay(1400,'2026-10-20',second),/different payment/);
+  const rows=(await db.query('select amount,payment_on::text,payment_kind,received_at,received_by from payments where order_id=$1 order by payment_on',[order])).rows;
+  assert.deepEqual(rows.map(row=>[row.payment_on,Number(row.amount),row.payment_kind]),[['2026-10-11',1000,'down_payment'],['2026-10-20',1500,'down_payment'],['2026-10-26',500,'down_payment']]);
+  assert.ok(rows.every(row=>row.received_by===id(2)));
+  assert.equal(rows.reduce((sum,row)=>sum+Number(row.amount),0),3000);
+  const future=(await db.query("select ((now() at time zone 'Asia/Manila')::date+2)::text as day")).rows[0].day;
+  await assert.rejects(pay(1,future),/future/);
+  await assert.rejects(pay(2001,'2026-10-26'),/remaining order balance/);
+  await assert.rejects(pay(0,'2026-10-26'),/valid amount/);
+  await assert.rejects(pay('NaN','2026-10-26'),/valid amount/);
+  const count=(await db.query('select count(*)::integer as n from orders')).rows[0].n;
+  await assert.rejects(create(10,future),/future/);
+  await assert.rejects(create(6000,'2026-10-11'),/remaining order balance/);
+  assert.equal((await db.query('select count(*)::integer as n from orders')).rows[0].n,count,'failed intake deposit rolls back the entire new order');
+  await pay(2000,'2026-10-27',randomUUID(),'payment');
+  assert.equal((await db.query('select count(*)::integer as n from payments where order_id=$1',[order])).rows[0].n,4);
+  assert.equal(Number((await db.query('select sum(amount) as n from payments where order_id=$1 and payment_kind=\'down_payment\'',[order])).rows[0].n),3000);
+  await asUser(3);await assert.rejects(pay(1,'2026-10-26'),/Only admin or front desk/);
+  await asUser(null);await assert.rejects(pay(1,'2026-10-26'),/Only admin or front desk/);
+  await db.exec('reset role');
+  const before=(await db.query('select id,payment_on::text,payment_kind,amount,received_at from payments order by id')).rows;
+  await db.exec(fs.readFileSync('supabase/migrations/20261029082024_dated_customer_downpayments.sql','utf8'));
+  assert.deepEqual((await db.query('select id,payment_on::text,payment_kind,amount,received_at from payments order by id')).rows,before,'rerunning SQL preserves all actual dates and receipts');
+});

@@ -31,7 +31,7 @@ export function SssSettings({runs,runId,onSelectRun,lines,employees,onSaved}:{
     }catch(e){setError(typeof e==="object"&&e!==null&&"message" in e?String(e.message):"Could not save SSS deduction.");}
     finally{saving.current=false;setBusy(false);}
   }
-  return <section className="payroll-section" id="sss-settings"><h2>SSS deduction settings</h2>
+  return <section className="payroll-section" id="sss-settings"><h2>SSS adjustment for an existing payroll</h2>
     <p>Enter the employee SSS share to deduct for this payroll period. Use the amount allocated to this period so a monthly contribution is not deducted twice. Employer contributions are excluded from this employee deduction.</p>
     {error&&<p className="payroll-alert is-error" role="alert">{error}</p>}{notice&&<p className="payroll-alert" role="status">{notice}</p>}
     <div className="payroll-form-grid">

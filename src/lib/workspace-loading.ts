@@ -17,3 +17,15 @@ export function groupByOrder<T extends { order_id: string }>(rows: T[]) {
   }
   return grouped;
 }
+
+// Reports must not silently stop at the API's first page of records.
+export async function readAllRows<T>(page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>, pageSize = 500): Promise<T[]> {
+  const rows: T[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const result = await page(from, from + pageSize - 1);
+    if (result.error) throw new Error(result.error.message);
+    const batch = result.data ?? [];
+    rows.push(...batch);
+    if (batch.length < pageSize) return rows;
+  }
+}

@@ -8,6 +8,11 @@
 .team-chat-meta{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;font-size:13px}
 .team-chat-meta time{font-size:11px;color:var(--muted,#78867d)}
 .team-chat-body{white-space:pre-wrap;overflow-wrap:anywhere;margin-top:7px;line-height:1.6;font-size:14px}
+.team-chat-quote{margin:8px 0;padding:8px 12px;border-left:3px solid #2563eb;background:#2563eb0a;display:grid;gap:5px;white-space:pre-wrap;overflow-wrap:anywhere;max-height:150px;overflow:auto;font-size:13px}
+.team-chat-mention{background:#e1ebff;color:#174a9e;border-radius:4px;padding:1px 4px}
+.team-chat-activity{display:block;color:#526b62;margin-top:6px}
+.team-chat-accounts{font-size:13px}.team-chat-accounts summary{cursor:pointer;padding:6px 0}.team-chat-accounts input{display:block;padding:8px;margin:6px 0;border:1px solid var(--line,#edf0ed);border-radius:6px}
+.team-chat-accounts>div{display:flex;gap:6px;flex-wrap:wrap;max-height:150px;overflow:auto}
 .team-chat-compose{margin-top:16px;display:grid;gap:8px}.team-chat-compose label{font-size:13px;font-weight:600}
 .team-chat-compose textarea{width:100%;box-sizing:border-box;resize:vertical;max-height:220px;border:1px solid var(--line,#edf0ed);border-radius:8px;padding:12px;font:inherit;color:var(--ink);background:var(--bg,#fff)}
 .team-chat-actions{display:flex;justify-content:space-between;align-items:center;gap:12px}.team-chat-actions small{color:var(--muted,#78867d)}

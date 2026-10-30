@@ -10,6 +10,29 @@ vm.runInNewContext(ts.transpileModule(
   { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } },
 ).outputText, { exports: exportsUnderTest, Promise });
 const { createOrderOnce } = exportsUnderTest;
+const { saveOrderSewerAssignments } = exportsUnderTest;
+
+test('order retries finish sewer assignments with the same request IDs and original order', async () => {
+  const progress = {};
+  const assignments = [{requestId:'a',employeeId:'sewer-a',quantity:8,notes:'M sizes'}, {requestId:'b',employeeId:'sewer-b',quantity:5,notes:'L sizes'}];
+  const saved = new Map(); let creates=0; let fail=true;
+  const submit=async()=>{
+    const orderId=await createOrderOnce(progress,async()=>{creates++;return 'order-1';});
+    await saveOrderSewerAssignments(assignments,async()=>`${orderId}-sewing`,async(task,assignment)=>{
+      assert.equal(task,'order-1-sewing');
+      if(assignment.requestId==='b'&&fail){fail=false;throw new Error('Connection lost');}
+      saved.set(assignment.requestId,assignment);
+    });
+  };
+  await assert.rejects(submit(),/Connection lost/);
+  await submit();
+  assert.equal(creates,1); assert.equal(saved.size,2);
+  assert.equal(saved.get('a').quantity,8); assert.equal(saved.get('b').employeeId,'sewer-b');
+});
+
+test('orders without selected sewers defer assignment without requesting a sewing task', async () => {
+  await saveOrderSewerAssignments([],async()=>{throw new Error('Must not query');},async()=>{throw new Error('Must not save');});
+});
 
 test('concurrent creation requests share one saved order', async () => {
   const progress = {};

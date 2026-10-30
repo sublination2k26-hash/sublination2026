@@ -31,3 +31,92 @@
 @media (max-width: 540px) {
   .routing-document-dialog { padding: 18px; max-height: calc(100dvh - 24px); }
 }
+@media (max-width: 640px) {
+  .document-routing .employee-manager-heading { align-items: stretch; flex-direction: column; }
+  .document-routing .employee-form-fields { grid-template-columns: minmax(0, 1fr); }
+  .document-routing input,
+  .document-routing select,
+  .document-routing textarea { min-width: 0; max-width: 100%; font-size: 16px; }
+  .document-routing button { min-height: 44px; }
+  .routing-dialog-heading { align-items: flex-start; }
+  .routing-dialog-heading h2 { min-width: 0; overflow-wrap: anywhere; }
+  .routing-dialog-heading > button { flex-shrink: 0; }
+  .document-routing .routing-table { max-height: none; overflow: visible; }
+  .document-routing .routing-table table { width: 100%; min-width: 0; }
+  .routing-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .routing-table tbody { display: grid; gap: 12px; }
+  .routing-table tbody tr { display: grid; padding: 12px; border: 1px solid var(--line, #ddd); border-radius: 10px; }
+  .document-routing .routing-table td { display: block; padding: 8px 0; min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+  .routing-table td::before { display: block; margin-bottom: 4px; font-weight: 700; font-size: 12px; }
+  .routing-table td:nth-child(1)::before { content: "Office"; }
+  .routing-table td:nth-child(2)::before { content: "Received"; }
+  .routing-table td:nth-child(3)::before { content: "Forwarded"; }
+  .routing-table td:nth-child(4)::before { content: "Handled by"; }
+  .routing-table td:nth-child(5)::before { content: "Remarks"; }
+  .routing-table td:nth-child(6)::before { content: "Recorded"; }
+  .routing-table[aria-label="Document register"] td:nth-child(1)::before { content: "PR / PO"; }
+  .routing-table[aria-label="Document register"] td:nth-child(2)::before { content: "Description / payee"; }
+  .routing-table[aria-label="Document register"] td:nth-child(3)::before { content: "Request date"; }
+  .routing-table[aria-label="Document register"] td:nth-child(4)::before { content: "Amount"; }
+  .routing-table[aria-label="Document register"] td:nth-child(5)::before { content: "Current stage"; }
+  .routing-table[aria-label="Document register"] td:nth-child(6)::before { content: "Payment"; }
+  .routing-table[aria-label="Document register"] td:nth-child(7)::before { content: "Actions"; }
+  .routing-actions { min-width: 0; }
+}
+
+/* Keep actions styled even where shared employee button styles are unavailable. */
+.document-routing button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 9px 14px;
+  border: 1px solid var(--line, #dbe3ee);
+  border-radius: 9px;
+  background: var(--bg, #fff);
+  color: var(--ink, #182b45);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+  cursor: pointer;
+  transition: background-color 150ms, border-color 150ms, box-shadow 150ms;
+}
+.document-routing button:hover:not(:disabled) {
+  border-color: #93b4ee;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+.document-routing button:focus-visible {
+  outline: 3px solid #93c5fd;
+  outline-offset: 3px;
+}
+.document-routing button:disabled { opacity: .5; cursor: not-allowed; }
+.document-routing button.primary-button,
+.document-routing .routing-actions button:first-child {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #fff;
+  box-shadow: 0 2px 5px #2563eb24;
+}
+.document-routing button.primary-button:hover:not(:disabled),
+.document-routing .routing-actions button:first-child:hover:not(:disabled) {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #fff;
+}
+.document-routing .routing-new-document { white-space: nowrap; }
+.document-routing .routing-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  min-width: 180px;
+}
+.document-routing .routing-actions button:first-child { grid-column: 1 / -1; }
+.document-routing .routing-actions button { white-space: nowrap; }
+.document-routing button svg { flex-shrink: 0; }
+@media (max-width: 640px) {
+  .document-routing button { min-height: 44px; }
+  .document-routing .routing-actions { min-width: 0; width: 100%; }
+}
