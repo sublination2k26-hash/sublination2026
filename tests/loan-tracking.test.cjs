@@ -8,6 +8,19 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/lib/loan-tracking.ts'
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
 }).outputText, { exports: exported, Date, Intl });
 const { monthlyDue, loanTracking } = exported;
+test('monthly percentage automatically computes peso interest with centavo rounding', () => {
+  const calculate = exported.monthlyInterestFromPercent;
+  assert.equal(calculate(50000, 12), 6000);
+  assert.equal(calculate(50000, 1.5), 750);
+  assert.equal(calculate(1234.56, 2.75), 33.95);
+  assert.equal(calculate(1, 0.5), 0.01);
+  assert.equal(calculate(50000, 0), 0);
+  assert.throws(() => calculate(0, 12), /valid principal/);
+  assert.throws(() => calculate(50000, -1), /non-negative/);
+  assert.throws(() => calculate(50000, NaN), /non-negative/);
+  assert.throws(() => calculate(Infinity, 12), /valid principal/);
+  assert.throws(() => calculate(9999999999.99, 200), /exceeds/);
+});
 const loan = { id: 'a', borrower_name: 'Ana', principal: 1000, monthly_interest: 100,
   start_date: '2026-01-31', first_due_date: '2026-02-28', due_day: 31, archived_at: null };
 const payment = (id, date, principal, interest, due = null) => ({ id, loan_id: 'a', paid_on: date,
@@ -72,3 +85,14 @@ test('interest-free loans keep principal due without fake overdue interest', () 
   assert.equal(result.lastPaymentDate, '2026-03-01');
   assert.equal(result.outstandingBalance, 860);
  });
+
+test('one-time interest is charged once, including before its due date and after early payoff', () => {
+  const once = { ...loan, principal: 50000, monthly_interest: 6000, interest_mode: 'one_time', interest_rate: 12 };
+  assert.equal(loanTracking(once, [], '2026-02-01').outstandingBalance, 56000);
+  assert.equal(loanTracking(once, [], '2026-07-01').interestBalance, 6000);
+  const records = [payment('early', '2026-02-01', 50000, 0)];
+  assert.equal(loanTracking(once, records, '2026-07-01').settled, false);
+  records.push(payment('interest', '2026-02-02', 0, 6000, '2026-02-28'));
+  assert.equal(loanTracking(once, records, '2026-07-01').settled, true);
+  assert.equal(loanTracking({ ...once, monthly_interest: 0 }, [], '2026-07-01').status, 'Overdue');
+});

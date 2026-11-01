@@ -18,6 +18,7 @@ test('loan ledger: admin-only access, bounded payments, monthly deadlines, settl
       ('00000000-0000-0000-0000-000000000003','admin',false);
   `);
   await db.exec(fs.readFileSync('supabase/migrations/20261029192517_document_routing_loans.sql','utf8'));
+  await db.exec(fs.readFileSync('supabase/migrations/20261101035952_personal_loan_interest_modes.sql','utf8'));
   const asUser = async (n,role='authenticated') => {
     await db.exec('reset role');
     await db.query("select set_config('test.uid',$1,false)", [n ? `00000000-0000-0000-0000-00000000000${n}` : '']);
@@ -47,7 +48,7 @@ test('loan ledger: admin-only access, bounded payments, monthly deadlines, settl
   await assert.rejects(insert(0,40,'2026-02-28','2026-03-10',partial.id),/duplicate key/);
   const payoff=(await insert(900,0)).rows[0];
   await assert.rejects(insert(900,0,null,'2026-03-10',payoff.id),/duplicate key/);
-  await assert.rejects(db.query('update personal_loans set archived_at=now() where id=$1',[loan.id]),/outstanding monthly interest/);
+  await assert.rejects(db.query('update personal_loans set archived_at=now() where id=$1',[loan.id]),/outstanding interest/);
   await assert.rejects(insert(0,100,'2026-03-31','2026-04-01'),/valid monthly/);
   const last=(await insert(0,60,'2026-02-28','2026-04-01')).rows[0];
   await db.query('update personal_loans set archived_at=now() where id=$1',[loan.id]);
@@ -55,7 +56,18 @@ test('loan ledger: admin-only access, bounded payments, monthly deadlines, settl
   await assert.rejects(db.query('delete from personal_loan_payments where id=$1',[last.id]),/Restore/);
   await db.query('update personal_loans set archived_at=null where id=$1',[loan.id]);
   await db.query('delete from personal_loan_payments where id=$1',[last.id]);
-  await assert.rejects(db.query('update personal_loans set archived_at=now() where id=$1',[loan.id]),/outstanding monthly interest/);
+  await assert.rejects(db.query('update personal_loans set archived_at=now() where id=$1',[loan.id]),/outstanding interest/);
+  const once = (await db.query(`insert into personal_loans(borrower_name,principal,start_date,first_due_date,due_day,monthly_interest,interest_mode,interest_rate)
+    values ('Once',50000,'2026-01-01','2026-02-01',1,6000,'one_time',12) returning *`)).rows[0];
+  assert.equal(Number(once.monthly_interest),6000);
+  await assert.rejects(db.exec(`insert into personal_loans(borrower_name,principal,start_date,first_due_date,due_day,monthly_interest,interest_mode,interest_rate)
+    values ('Wrong',50000,'2026-01-01','2026-02-01',1,5000,'one_time',12)`),/check constraint/);
+  await db.query(`insert into personal_loan_payments(loan_id,paid_on,principal_amount) values ($1,'2026-01-15',50000)`,[once.id]);
+  await assert.rejects(db.query('update personal_loans set archived_at=now() where id=$1',[once.id]),/outstanding/);
+  await assert.rejects(db.query(`insert into personal_loan_payments(loan_id,paid_on,interest_amount,interest_due_date) values ($1,'2026-03-01',6000,'2026-03-01')`,[once.id]),/one-time/);
+  await db.query(`insert into personal_loan_payments(loan_id,paid_on,interest_amount,interest_due_date) values ($1,'2026-01-15',6000,'2026-02-01')`,[once.id]);
+  await assert.rejects(db.query(`insert into personal_loan_payments(loan_id,paid_on,interest_amount,interest_due_date) values ($1,'2026-02-01',0.01,'2026-02-01')`,[once.id]),/unpaid interest/);
+  await db.query('update personal_loans set archived_at=now() where id=$1',[once.id]);
   for (const user of [2,3,null]) {
     await asUser(user);
     assert.equal((await db.query('select * from personal_loans')).rows.length,0);
