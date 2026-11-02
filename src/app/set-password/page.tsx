@@ -1,5 +1,7 @@
 "use client";
 
+import { PasswordField } from "@/components/ui/password-field";
+
 import { BrandLogo } from "@/components/ui/brand-logo";
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
@@ -27,8 +29,8 @@ export default function SetPasswordPage() {
   return <main className="login-screen"><form className="login-card" onSubmit={submit}>
     <BrandLogo/><div className="section-kicker">EMPLOYEE ACCOUNT</div><h1>Set your password</h1><p>Choose a password to finish setting up your Subli-nation Printing System sign-in.</p>
     {error && <div className="login-error" role="alert">{error}</div>}
-    <label>Password<input required minLength={8} type="password" autoComplete="new-password" value={password} onChange={event => setPassword(event.target.value)}/></label>
-    <label>Confirm password<input required minLength={8} type="password" autoComplete="new-password" value={confirm} onChange={event => setConfirm(event.target.value)}/></label>
+    <PasswordField label="Password" required minLength={8} autoComplete="new-password" value={password} onChange={event => setPassword(event.target.value)}/>
+    <PasswordField label="Confirm password" required minLength={8} autoComplete="new-password" value={confirm} onChange={event => setConfirm(event.target.value)}/>
     <button className="primary-button" type="submit" disabled={!supabaseConfigured || busy}>{busy ? "Saving…" : "Save password"}</button>
   </form></main>;
 }

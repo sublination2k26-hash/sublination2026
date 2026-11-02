@@ -15,6 +15,10 @@ export function latestStage(document: RoutingDocument) {
   return [...document.document_routing_entries].sort((a, b) => b.created_at.localeCompare(a.created_at))[0]?.stage ?? "P.R.";
 }
 
+export function latestStageUpdatedAt(document: RoutingDocument) {
+  return [...document.document_routing_entries].sort((a, b) => b.created_at.localeCompare(a.created_at))[0]?.created_at ?? null;
+}
+
 // Cheque release follows completion of every preceding office.
 export function pendingRoutingStages(entries: RoutingEntry[]) {
   return routingStages.filter(stage => stage !== "CHEQUE RELEASE" &&

@@ -1,5 +1,7 @@
 "use client";
 
+import { PasswordField } from "@/components/ui/password-field";
+
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Check, LoaderCircle, Pencil, Plus, ShieldCheck, UserRoundPlus, X } from "lucide-react";
 import { createEmployee, listEmployees, updateEmployee, type EmployeeAccount } from "@/actions/employees";
@@ -56,7 +58,7 @@ export function EmployeeManager() {
     {error && <div className="employee-error" role="alert">{error}</div>}
     {showForm && <form className="employee-form" onSubmit={submit}>
       <div className="employee-form-title"><b>{editing ? "Edit employee" : "Create employee account"}</b><button type="button" onClick={resetForm} aria-label="Close"><X size={16}/></button></div>
-      <div className="employee-form-fields"><label>Full name *<input required value={name} onChange={event => setName(event.target.value)} placeholder="Employee name"/></label><label>Email address *<input required type="email" disabled={Boolean(editing)} value={email} onChange={event => setEmail(event.target.value)} placeholder="name@example.com"/></label>{!editing && <label>Initial password *<input required minLength={8} type="password" autoComplete="new-password" value={password} onChange={event => setPassword(event.target.value)} placeholder="At least 8 characters"/></label>}<label>Role *<select value={role} onChange={event => setRole(event.target.value as AppRole)}>{roleOptions.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label></div>
+      <div className="employee-form-fields"><label>Full name *<input required value={name} onChange={event => setName(event.target.value)} placeholder="Employee name"/></label><label>Email address *<input required type="email" disabled={Boolean(editing)} value={email} onChange={event => setEmail(event.target.value)} placeholder="name@example.com"/></label>{!editing && <PasswordField label="Initial password *" required minLength={8} autoComplete="new-password" value={password} onChange={event => setPassword(event.target.value)} placeholder="At least 8 characters"/>}<label>Role *<select value={role} onChange={event => setRole(event.target.value as AppRole)}>{roleOptions.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label></div>
       <p className="employee-form-note">No invitation email is sent. The employee can sign in with this email and password.</p>
       <div className="form-actions"><button type="button" className="cancel-button" onClick={resetForm}>Cancel</button><button className="primary-button" type="submit" disabled={saving}>{saving && <LoaderCircle className="spin" size={14}/>}<Check size={14}/>{editing ? "Save changes" : "Create account"}</button></div>
     </form>}

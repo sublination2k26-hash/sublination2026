@@ -1,5 +1,7 @@
 "use client";
 
+import { PasswordField } from "@/components/ui/password-field";
+
 import { BrandLogo } from "@/components/ui/brand-logo";
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
@@ -49,7 +51,7 @@ export default function LoginPage() {
     {!supabaseConfigured && <div className="login-setup"><AlertCircle size={16}/><span>Supabase isn’t connected yet. Copy <code>.env.example</code> to <code>.env.local</code>, add your project URL and anon key, then restart the app.</span></div>}
     {error && <div className="login-error" role="alert">{error}</div>}
     <label>Login ID or email<input required autoComplete="username" value={loginId} onChange={event => setLoginId(event.target.value)} placeholder="Your employee ID or email"/></label>
-    <label>Password<input required type="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} placeholder="Your password"/></label>
+    <PasswordField label="Password" required autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} placeholder="Your password"/>
     <button className="primary-button" type="submit" disabled={!supabaseConfigured || busy}>{busy ? "Signing in…" : "Sign in"}</button>
     <small>Use the login ID and password provided by your admin. Existing email accounts can still sign in with their email.</small>
   </form><Link href="/scan-qr" className="login-qr-card"><span className="login-qr-icon"><ScanLine size={48}/></span><h2>Scan QR</h2><p>Fast-track attendance or check-in using your personalized QR code.</p><small>No login needed for attendance</small></Link></div></main>;
