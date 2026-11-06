@@ -5,11 +5,25 @@ Next.js application with Supabase Auth, PostgreSQL, Row Level Security, and priv
 ## Configure Supabase
 
 1. Create a Supabase project.
-2. In the Supabase SQL Editor, run `supabase/migrations/202610170001_initial_schema.sql`, then run `supabase/migrations/202610190002_dashboard_persistence.sql`, `supabase/migrations/202610190003_catalog_orders.sql`, `supabase/migrations/202610200001_admin_artist_artwork_uploads.sql`, `supabase/migrations/202610200002_return_defects_to_artist.sql`, `supabase/migrations/202610200003_return_defects_to_any_stage.sql`, `supabase/migrations/202610200004_production_notifications.sql`, `supabase/migrations/202610200005_defect_rework_workflow.sql`, `supabase/migrations/202610200006_defect_front_desk_return.sql`, `supabase/migrations/202610200007_employee_work_payroll.sql`, `supabase/migrations/202610200008_automatic_task_payroll_tracking.sql`, and `supabase/migrations/202610200009_front_desk_production_permissions.sql` in order.
+2. Apply all migrations in `supabase/migrations/` in filename order to the same Supabase project used by the app. For an existing database, inspect migration history and apply only missing migrations; do not rerun the entire directory. The deployed app requires migrations newer than the initial payroll setup, including service production routes and multi-item orders.
 3. In Supabase Authentication, create the owner's first user. Then replace `owner@example.com` in `supabase/bootstrap-admin.sql` with that email and run the bootstrap SQL once. This gives the owner the initial `admin` profile.
 4. Copy `.env.example` to `.env.local` and fill in the project URL, publishable key, and secret key. Keep `SUPABASE_SECRET_KEY` server-side; never prefix it with `NEXT_PUBLIC_` or commit `.env.local`.
 5. Add `http://localhost:3000/auth/callback` to Supabase Auth's allowed redirect URLs for local development. Set `NEXT_PUBLIC_SITE_URL` to the deployed app URL when deploying.
 6. Run `npm install`, then `npm run dev`, and open `http://localhost:3000`.
+
+## Workspace cannot load: missing production service column
+
+`column products.production_service does not exist` means the database queried by the app is missing a required schema change. Check that the deployed app's `NEXT_PUBLIC_SUPABASE_URL` points to the intended project, then inspect that project's migration history. Apply the missing `supabase/migrations/20261022084023_service_production_routes.sql` migration, including its product backfill and routing functions, before later migrations that depend on it. Adding an empty column alone does not install the required order routing behavior. Preserve existing migration history and apply other pending migrations in filename order.
+
+Verify in that project's SQL Editor:
+
+```sql
+select production_service from public.products limit 1;
+select public.service_production_stages('subcon_print');
+notify pgrst, 'reload schema';
+```
+
+The first query must succeed and the second must return `{layout,printing,qc}`. Refresh the app after applying the migration. The artist activity/replies migration does not create this product column.
 
 ## Personal loan reminders in Document Routing
 
@@ -158,3 +172,12 @@ In **Sewing assignments → Sewing details & reports**, filter by job order and 
 Apply `supabase/migrations/20261029082024_dated_customer_downpayments.sql` for dated installment tracking. When creating an order, enter the initial **Down payment date**. For every later installment, open the order → **Add payment**, choose **Down payment / installment**, and enter its own date, amount, method, and receipt note. Each installment inserts a separate payment row; earlier entries stay intact. The date received is separate from the timestamp when staff entered the record. Existing receipt dates are backfilled using Philippine time, and existing initial deposits retain their down-payment classification. Other historical payments keep their previous generic classification.
 
 Open **Customers → Payment history** for all receipts from that customer's orders, or **Payments** to filter across customers. The history lists every dated entry in chronological order (for example October 11, 20, and 26), and displays total down payments, total paid, and remaining balance. **Export Excel** exports each receipt separately with its payment type, date, amount, reference, and entry timestamp. Repeated saves reuse the receipt request ID, and database balance checks prevent overpayment. No existing receipts are merged or deleted. Tests: `node --test tests/dated-customer-payments.test.cjs tests/payment-tracking.test.cjs`.
+
+
+### Order access and deleted-order backups
+
+Apply `supabase/migrations/20261106025346_order_permissions_and_deletion_backups.sql` after the roster and admin-ready migrations. Front desk can correct existing roster names even after production starts; numbers, sizes, row count, quantities and prices stay locked. Released/cancelled rosters remain locked. New order intake is still available.
+
+Admin deletion saves a transactional JSON snapshot in `deleted_order_backups` before cascade deletion. If backup fails, deletion rolls back. Only admin can read/export backups from Orders ? Download deleted order backups. Snapshots include related database rows and artwork references, not copies of Storage file contents. Restoration is manual; no restore button is provided. Backups cover deletions after this migration, not older deletions.
+
+Login can remember a username on the device; passwords are saved through browser password-manager autofill. Dashboard collection/outstanding summary widgets are admin-only. Existing payment/order details and database read permissions remain available to staff; this display restriction does not make underlying financial data private.
