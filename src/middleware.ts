@@ -36,7 +36,7 @@ export async function middleware(request: NextRequest) {
   }
   if (user) {
     const { data: profile } = await supabase.from("profiles").select("active").eq("id", user.id).maybeSingle();
-    if (!profile?.active) {
+    if (profile?.active === false) {
       await supabase.auth.signOut();
       const target = request.nextUrl.clone();
       target.pathname = "/login";
