@@ -46,7 +46,7 @@ export function PlayerList({ orderId, editable, namesOnly = false, canAddMembers
     finally { setBusy(false); }
   }
   return <section className="panel">
-    <div className="panel-heading"><h2>Player names, numbers &amp; sizes</h2>{editable && loaded && item && !editing && <button className="filter-button" onClick={edit}>Edit player list</button>}</div>
+    <div className="panel-heading"><h2>Order items &amp; personalization</h2>{editable && loaded && item && !editing && <button className="filter-button" onClick={edit}>Edit player list</button>}</div>
     {error && <p role="alert">{error}</p>}{message && <p role="status">{message}</p>}
     {!loaded && !error && <p>Loading player lists…</p>}
     {loaded && <label>Order item<select value={selected} disabled={editing} onChange={event => { setSelected(event.target.value); setMessage(""); }}>{items.map((value, index) => <option key={value.id} value={value.id}>{index + 1}. {value.product_name} ({value.quantity} pcs)</option>)}</select></label>}
