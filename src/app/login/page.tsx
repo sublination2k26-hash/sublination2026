@@ -9,6 +9,8 @@ import Link from "next/link";
 import "./login-qr.css";
 import { createClient, supabaseConfigured } from "@/lib/supabase/client";
 import { employeeLoginToAuthEmail } from "@/lib/auth/employee-login";
+import { watchLoginSession } from "@/lib/auth/login-session";
+import { withWorkspaceTimeout } from "@/lib/workspace-loading";
 
 export default function LoginPage() {
   const [loginId, setLoginId] = useState("");
@@ -16,6 +18,15 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [rememberUsername, setRememberUsername] = useState(false);
+  const [checkingSession,setCheckingSession] = useState(supabaseConfigured);
+
+  useEffect(()=>{
+    if(!supabaseConfigured)return;
+    return watchLoginSession(window,async()=>{
+      const {data:{user},error}=await withWorkspaceTimeout(createClient().auth.getUser(),10000);
+      return !error&&Boolean(user);
+    },()=>setCheckingSession(false));
+  },[]);
 
   useEffect(() => {
     try { const saved = localStorage.getItem("subli.login.username.v1"); if (saved) { setLoginId(saved); setRememberUsername(true); } } catch {}
@@ -50,6 +61,7 @@ export default function LoginPage() {
     finally { setBusy(false); }
   }
 
+  if(checkingSession)return <main className="login-screen"><div className="login-card" role="status">Checking your session…</div></main>;
   return <main className="login-screen"><div className="login-options"><form id="login-form" className="login-card" method="post" autoComplete="on" onSubmit={submit}>
     <BrandLogo/><div className="section-kicker">SUBLI-NATION PRINTING SYSTEM</div><h1>Welcome back</h1>
     <p>Sign in with your employee account to open the production workspace.</p>
