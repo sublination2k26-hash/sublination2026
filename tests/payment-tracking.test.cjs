@@ -12,6 +12,19 @@ vm.runInNewContext(ts.transpileModule(
 const { paymentTracking, customerPaymentSummaries } = exported;
 const today = '2026-10-21';
 
+test('settlement automatically leaves pending payments and completed paid jobs enter their records folder',()=>{
+  const order={total:300,status:'in_production',payments:[{amount:100}]};
+  assert.equal(exported.paymentRecordGroup(order),'outstanding');
+  order.payments.push({amount:200});
+  assert.equal(exported.paymentRecordGroup(order),'paid');
+  order.status='ready_for_release';assert.equal(exported.paymentRecordGroup(order),'completed_paid');
+  order.status='released';assert.equal(exported.paymentRecordGroup(order),'completed_paid');
+  assert.equal(exported.paymentRecordGroup({...order,payments:[{amount:100}]}),'outstanding');
+  assert.equal(exported.paymentRecordGroup({...order,status:'cancelled'}),'cancelled');
+  assert.equal(exported.paymentRecordGroup({...order,total:0.3,payments:[{amount:0.1},{amount:0.2}]}),'completed_paid');
+  assert.equal(exported.paymentRecordGroup({total:500,status:'pending',payments:[]}),'outstanding');
+});
+
 test('all dated customer down payments remain separate and aggregate without mixing customers or balance payments',()=>{
   const payments=[
     {id:'c',amount:500,date:'2026-10-26',kind:'down_payment',method:'Cash',note:'Third deposit',recordedAt:'2026-10-29T03:00:00Z'},

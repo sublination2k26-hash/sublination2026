@@ -9,6 +9,12 @@ export function paymentTracking(total: number, payments: { amount: number }[], d
   return { paid, balance, status, overdue: status === "Overdue" };
 }
 
+export function paymentRecordGroup(order: {total: number; payments: {amount: number}[]; status: string}) {
+  if (order.status === "cancelled") return "cancelled";
+  if (paymentTracking(order.total, order.payments, "").balance > 0) return "outstanding";
+  return ["ready_for_release", "released"].includes(order.status) ? "completed_paid" : "paid";
+}
+
 export function downPayment(payments: { amount: number; note?: string; kind?: string }[]) {
   return Math.round(payments.filter(payment => payment.kind ? payment.kind === "down_payment" : payment.note === "Initial down payment").reduce((sum, payment) => sum + payment.amount, 0) * 100) / 100;
 }

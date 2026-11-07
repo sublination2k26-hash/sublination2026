@@ -1,12 +1,13 @@
 "use client";
 
+import { TeamMemberAdditions } from "@/components/orders/team-member-additions";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 type Player = { name: string; number: string; size: string };
 type Item = { id: string; product_name: string; quantity: number; customization: { roster?: Player[]; names?: string } };
 
-export function PlayerList({ orderId, editable, namesOnly = false, onSaved }: { orderId: string; editable: boolean; namesOnly?: boolean; onSaved: () => Promise<void> }) {
+export function PlayerList({ orderId, editable, namesOnly = false, canAddMembers=false, orderStatus, refreshToken, onAdded, onSaved }: { canAddMembers?: boolean; orderStatus?: string; refreshToken?: object; onAdded?: (orderNumber:string)=>Promise<void>; orderId: string; editable: boolean; namesOnly?: boolean; onSaved: () => Promise<void> }) {
   const [items, setItems] = useState<Item[]>([]);
   const [selected, setSelected] = useState("");
   const [rows, setRows] = useState<Player[]>([]);
@@ -25,7 +26,7 @@ export function PlayerList({ orderId, editable, namesOnly = false, onSaved }: { 
       } catch (cause) { if (active) setError(cause instanceof Error ? cause.message : "Could not load player lists."); }
     })();
     return () => { active = false; };
-  }, [orderId]);
+  }, [orderId,refreshToken]);
   const item = items.find(value => value.id === selected);
   function edit() {
     setRows(item?.customization?.roster?.map(row => ({ name: row.name ?? "", number: row.number ?? "", size: row.size ?? "" })) ?? []);
@@ -55,5 +56,6 @@ export function PlayerList({ orderId, editable, namesOnly = false, onSaved }: { 
       <button type="button" disabled={namesOnly || rows.length >= (item?.quantity ?? 0)} onClick={() => setRows(values => [...values, { name: "", number: "", size: "" }])}>Add player</button>
       <button className="primary-button" type="submit">{busy ? "Saving…" : "Save player list"}</button><button type="button" onClick={() => setEditing(false)}>Cancel</button></fieldset>
     </form> : item && <div style={{ whiteSpace: "pre-wrap" }}>{item.customization?.names || "No player details encoded yet."}</div>}
+    {canAddMembers&&item&&!editing&&onAdded&&orderStatus!=="cancelled"&&<TeamMemberAdditions key={item.id} itemId={item.id} availableSlots={["released","ready_for_release"].includes(orderStatus??"")?0:Math.max(0,item.quantity-(item.customization?.roster?.length??0))} onSaved={onAdded}/>}
   </section>;
 }

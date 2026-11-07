@@ -1,18 +1,18 @@
 "use client";
 import { useState } from "react";
-import { customerPaymentHistory, downPayment, type CustomerPaymentEntry } from "@/lib/payment-tracking";
+import { customerPaymentHistory, downPayment, paymentRecordGroup, type CustomerPaymentEntry } from "@/lib/payment-tracking";
 import { ExcelExport } from "@/components/ui/excel-export";
 const peso = (value: number) => value.toLocaleString("en-PH", {style: "currency", currency: "PHP"});
 export function CustomerPaymentHistory({orders,initialCustomerId="",onOpen}: {orders: {id: string; customerId: string; customer: string; total: number; status: string; payments: CustomerPaymentEntry[]; priceItems?: {name:string;quantity:number;unitPrice:number}[]}[]; initialCustomerId?: string; onOpen: (orderId: string)=>void}) {
   const [group,setGroup] = useState("outstanding");
   const [customerId,setCustomerId] = useState(initialCustomerId);
   const customers = [...new Map(orders.map(order => [order.customerId, order.customer])).entries()];
-  const selectedOrders = orders.filter(order => group === "cancelled" ? order.status === "cancelled" : order.status !== "cancelled" && (group === "paid" ? order.payments.reduce((sum,p)=>sum+p.amount,0) >= order.total : order.payments.reduce((sum,p)=>sum+p.amount,0) < order.total));
+  const selectedOrders = orders.filter(order => paymentRecordGroup(order) === group);
   const rows = customerPaymentHistory(selectedOrders,customerId);
-  const balance = orders.filter(order => (!customerId || order.customerId === customerId) && order.status !== "cancelled").reduce((sum,order) => sum + Math.max(0,order.total-order.payments.reduce((paid,payment) => paid+payment.amount,0)),0);
+  const balance = selectedOrders.filter(order => (!customerId || order.customerId === customerId) && order.status !== "cancelled").reduce((sum,order) => sum + Math.max(0,order.total-order.payments.reduce((paid,payment) => paid+payment.amount,0)),0);
   return <section className="panel"><div className="panel-heading"><div><div className="section-kicker">CUSTOMER PAYMENT HISTORY</div><h2>Every dated down payment</h2></div><ExcelExport title="Customer payment history" columns={[{header:"Payment date",width:18},{header:"Customer",width:28},{header:"Job order",width:22},{header:"Type",width:22},{header:"Method",width:20},{header:"Amount (PHP)",width:20,format:"#,##0.00"},{header:"Reference / note",width:40},{header:"Recorded at (PH)",width:28}]} rows={rows.map(row=>[row.date,row.customer,row.order,row.kind==="down_payment"?"Down payment":"Balance / payment",row.method,row.amount,row.note,new Date(row.recordedAt).toLocaleString("en-PH",{timeZone:"Asia/Manila"})])}/></div>
-    <label className="notes-label">Payment status<select value={group} onChange={event=>setGroup(event.target.value)}><option value="outstanding">To collect / outstanding</option><option value="paid">Fully paid records</option><option value="cancelled">Cancelled order records</option></select></label>
-    {group==="paid"&&<p>Fully paid records are kept for inventory reference. No automatic deletion.</p>}
+    <label className="notes-label">Payment status<select value={group} onChange={event=>setGroup(event.target.value)}><option value="outstanding">To collect / outstanding</option><option value="paid">Fully paid / production ongoing</option><option value="completed_paid">Completed &amp; paid records</option><option value="cancelled">Cancelled order records</option></select></label>
+    {(group==="paid"||group==="completed_paid")&&<p>Orders move here automatically when fully paid. Completed &amp; paid records are kept for inventory reference for at least three months.</p>}
     <label className="notes-label">Customer<select value={customerId} onChange={event=>setCustomerId(event.target.value)}><option value="">All customers</option>{customers.map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label>
     <div className="table-wrap"><table><thead><tr><th>JOB ORDER</th><th>ITEM</th><th>QUANTITY</th><th>PRICE EACH</th><th>LINE TOTAL</th></tr></thead><tbody>{selectedOrders.filter(order=>!customerId||order.customerId===customerId).flatMap(order=>(order.priceItems??[]).map((item,index)=><tr key={`${order.id}-${index}`}><td><button className="link-button" onClick={()=>onOpen(order.id)}>{order.id}</button></td><td>{item.name}</td><td>{item.quantity}</td><td>{peso(item.unitPrice)}</td><td>{peso(item.quantity*item.unitPrice)}</td></tr>))}</tbody></table></div>
     <div className="balance-strip"><span>Total down payments <b>{peso(downPayment(rows))}</b></span><span>Total paid <b>{peso(rows.reduce((sum,row)=>sum+row.amount,0))}</b></span><span>Remaining balance <b>{peso(balance)}</b></span><span>Transactions <b>{rows.length}</b></span></div>
