@@ -50,6 +50,29 @@ export function ProductManager({ initialProducts }: { initialProducts: Product[]
   const [showRemoved, setShowRemoved] = useState(false);
   const visibleProducts = products.filter(product => showRemoved || product.active);
 
+  const deleteProduct = async (product: Product) => {
+    if (changing.current || saving) return;
+    if (!window.confirm(`Permanently delete ${product.name}? This cannot be undone. Products already used in job orders must be removed from the catalog instead.`)) return;
+    changing.current = true;
+    setChangingId(product.id);
+    setError("");
+    setNotice("");
+    try {
+      const { data, error: deleteError } = await createClient().from("products")
+        .delete().eq("id", product.id).select("id").single();
+      if (deleteError?.code === "23503") throw new Error("This product is used in existing records and cannot be deleted. Use Remove to hide it from new orders.");
+      if (deleteError) throw deleteError;
+      if (!data) throw new Error("Product was not deleted. Refresh and try again.");
+      setProducts(current => current.filter(item => item.id !== data.id));
+      setNotice(`${product.name} permanently deleted.`);
+    } catch (cause) {
+      setError(typeof cause === "object" && cause !== null && "message" in cause ? String(cause.message) : "Could not delete this product.");
+    } finally {
+      changing.current = false;
+      setChangingId(null);
+    }
+  };
+
   const changeProductStatus = async (product: Product) => {
     if (changing.current || saving) return;
     if (product.active && !window.confirm(`Remove ${product.name} from the catalog? Existing orders will be kept. You can restore the product later.`)) return;
@@ -111,7 +134,7 @@ export function ProductManager({ initialProducts }: { initialProducts: Product[]
       <div>
         <div className="section-kicker">ADMIN CATALOG</div>
         <h2>Products</h2>
-        <p>Manage products available for new orders. Removed products can be restored.</p>
+        <p>Manage products available for new orders. Removed products can be restored. Delete unused test products permanently.</p>
       </div>
     </div>
 
@@ -140,7 +163,7 @@ export function ProductManager({ initialProducts }: { initialProducts: Product[]
           <td>{pricingServices.find(item => (product.category.startsWith(item.label + " - ") || product.category.startsWith(item.label + " ? ")))?.label ?? typeLabels[product.production_type]}</td>
           <td>{Number(product.base_price).toLocaleString("en-PH", { style: "currency", currency: "PHP" })}</td>
           <td>{product.active ? "Active" : "Removed"}</td>
-          <td><button type="button" className="filter-button" disabled={saving || changingId !== null} aria-label={`${product.active ? "Remove" : "Restore"} ${product.name}`} onClick={() => void changeProductStatus(product)}>{changingId === product.id ? "Saving…" : product.active ? "Remove" : "Restore"}</button></td>
+          <td><button type="button" className="filter-button" disabled={saving || changingId !== null} aria-label={`${product.active ? "Remove" : "Restore"} ${product.name}`} onClick={() => void changeProductStatus(product)}>{changingId === product.id ? "Saving…" : product.active ? "Remove" : "Restore"}</button>{" "}<button type="button" className="filter-button" disabled={saving || changingId !== null} aria-label={`Permanently delete ${product.name}`} onClick={() => void deleteProduct(product)}>Delete</button></td>
         </tr>)}</tbody>
       </table>
       {visibleProducts.length === 0 && <p className="empty-inline"><Package size={16}/> No {showRemoved ? "" : "active "}products. Add a product above{!showRemoved && " or show removed products to restore one"}.</p>}

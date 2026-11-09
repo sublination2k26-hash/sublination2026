@@ -8,7 +8,52 @@ import { authEmailToEmployeeLogin } from "@/lib/auth/employee-login";
 import { APP_ROLES, type AppRole } from "@/lib/auth/permissions";
 
 export type EmployeeAccount = { id: string; name: string; loginId: string; role: AppRole; active: boolean };
-type Result = { ok: true } | { error: string };
+type Result = { ok: true; deactivated?: boolean } | { error: string };
+
+export async function deleteEmployee(id: string): Promise<Result> {
+  try {
+    const { supabase, user } = await requireAdmin();
+    if (id === user.id) return { error: "You cannot delete the admin account currently in use." };
+    const { error } = await serviceClient().auth.admin.deleteUser(id);
+    if (error) {
+      // Linked historical records can prevent deleting the Auth user/profile.
+      // Remove access without deleting those records; do not mask other failures.
+      if (!/database error deleting user|foreign key|violates.*constraint/i.test(error.message)) {
+        return { error: `Could not delete this account: ${error.message}` };
+      }
+      const { data, error: deactivateError } = await supabase.from("profiles")
+        .update({ active: false, updated_at: new Date().toISOString() }).eq("id", id).select("id").single();
+      if (deactivateError || !data) return { error: "Deletion was blocked, and access could not be deactivated. Refresh and try Deactivate." };
+      revalidatePath("/employees");
+      return { ok: true, deactivated: true };
+    }
+    revalidatePath("/employees");
+    return { ok: true };
+  } catch (error) { return { error: error instanceof Error ? error.message : "Could not delete employee." }; }
+}
+
+export async function changeEmployeePassword(input: { id: string; password: string }): Promise<Result> {
+  try {
+    await requireAdmin();
+    if (input.password.length < 8) return { error: "Password must be at least 8 characters." };
+    const { error } = await serviceClient().auth.admin.updateUserById(input.id, { password: input.password });
+    if (error) throw error;
+    return { ok: true };
+  } catch (error) { return { error: error instanceof Error ? error.message : "Could not change password." }; }
+}
+
+export async function getOwnSewingRate(): Promise<{ rate?: number | null; basis?: string; error?: string }> {
+  try {
+    const db = await createClient();
+    const { data: { user }, error } = await db.auth.getUser();
+    if (error || !user) throw new Error("Sign in to view your sewing rate.");
+    const { data: profile } = await db.from("profiles").select("role,active").eq("id", user.id).maybeSingle();
+    if (!profile?.active || profile.role !== "cutting_sewing") throw new Error("Only active sewers can view their rate here.");
+    const { data, error: rateError } = await serviceClient().from("employee_compensation").select("piece_rate,salary_basis").eq("employee_id", user.id).maybeSingle();
+    if (rateError) throw rateError;
+    return { rate: data ? Number(data.piece_rate) : null, basis: data?.salary_basis };
+  } catch (error) { return { error: error instanceof Error ? error.message : "Could not load sewing rate." }; }
+}
 
 async function requireAdmin() {
   const supabase = await createClient();

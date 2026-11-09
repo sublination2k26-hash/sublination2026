@@ -5,7 +5,7 @@ const vm = require('node:vm');
 const ts = require('typescript');
 const path = require('node:path');
 
-function loadActions(updateResult = { data: { id: 'employee' }, error: null }) {
+function loadActions(updateResult = { data: { id: 'employee' }, error: null }, deleteError) {
   let updates = 0;
   let revalidations = 0;
   const db = {
@@ -20,7 +20,10 @@ function loadActions(updateResult = { data: { id: 'employee' }, error: null }) {
   };
   const dependencies = {
     'server-only': {},
-    '@supabase/supabase-js': { createClient: () => { throw new Error('Unexpected privileged call'); } },
+    '@supabase/supabase-js': { createClient: () => {
+      if (deleteError === undefined) throw new Error('Unexpected privileged call');
+      return { auth: { admin: { deleteUser: async () => ({ error: deleteError }) } } };
+    } },
     'next/cache': { revalidatePath: () => { revalidations++; } },
     '@/lib/supabase/server': { createClient: async () => db },
     '@/lib/auth/employee-login': {},
@@ -30,7 +33,7 @@ function loadActions(updateResult = { data: { id: 'employee' }, error: null }) {
   const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
   const exports = {};
   vm.runInNewContext(code, {
-    exports, process, Date, Error,
+    exports, process: { env: { NEXT_PUBLIC_SUPABASE_URL: 'https://example.supabase.co', SUPABASE_SECRET_KEY: 'test-only' } }, Date, Error,
     require: name => {
       if (!(name in dependencies)) throw new Error(`Unexpected dependency: ${name}`);
       return dependencies[name];
@@ -48,6 +51,13 @@ test('owner cannot remove their own admin access or deactivate themselves', asyn
     assert.ok((await fixture.actions.updateEmployee(input)).error);
   }
   assert.equal(fixture.updates(), 0);
+});
+
+test('owner cannot delete their current account and short passwords never reach privileged API', async () => {
+  const fixture = loadActions();
+  assert.match((await fixture.actions.deleteEmployee('owner')).error, /cannot delete/);
+  assert.match((await fixture.actions.changeEmployeePassword({ id: 'employee', password: 'short' })).error, /at least 8/);
+  assert.equal(fixture.revalidations(), 0);
 });
 
 test('invalid names and roles are rejected before account or profile writes', async () => {
@@ -72,4 +82,33 @@ test('valid employee changes succeed and refresh the employee page', async () =>
   assert.equal(result.ok, true);
   assert.equal(fixture.updates(), 1);
   assert.equal(fixture.revalidations(), 1);
+});
+
+test('linked employee deletion deactivates access while preserving history', async () => {
+  const fixture = loadActions(undefined, { message: 'Database error deleting user' });
+  const result = await fixture.actions.deleteEmployee('employee');
+  assert.equal(result.ok, true);
+  assert.equal(result.deactivated, true);
+  assert.equal(fixture.updates(), 1);
+  assert.equal(fixture.revalidations(), 1);
+});
+
+test('employee without linked history is deleted without deactivating', async () => {
+  const fixture = loadActions(undefined, null);
+  const result = await fixture.actions.deleteEmployee('employee');
+  assert.equal(result.ok, true);
+  assert.equal(result.deactivated, undefined);
+  assert.equal(fixture.updates(), 0);
+});
+
+test('failed deactivation does not report successful removal', async () => {
+  const fixture = loadActions({ data: null, error: null }, { message: 'Database error deleting user' });
+  assert.match((await fixture.actions.deleteEmployee('employee')).error, /could not be deactivated/);
+  assert.equal(fixture.revalidations(), 0);
+});
+
+test('unrelated auth failures stay visible and do not change employee access', async () => {
+  const fixture = loadActions(undefined, { message: 'Invalid API key' });
+  assert.match((await fixture.actions.deleteEmployee('employee')).error, /Invalid API key/);
+  assert.equal(fixture.updates(), 0);
 });
