@@ -1,12 +1,15 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { garmentCategories } from "@/lib/garment-options";
 import { createClient } from "@/lib/supabase/client";
 
 type Member = {name: string; number: string; size: string};
-export function TeamMemberAdditions({itemId, availableSlots, onSaved}: {
-  itemId: string; availableSlots: number; onSaved: (orderNumber: string) => Promise<void>;
+export function TeamMemberAdditions({itemId, sourceName, sourceGarment, sourcePrice, availableSlots, onSaved}: {
+  itemId: string; sourceName: string; sourceGarment: string; sourcePrice: number; availableSlots: number; onSaved: (orderNumber: string) => Promise<void>;
 }) {
+  const [garment,setGarment] = useState(sourceGarment || "");
+  const [unitPrice,setUnitPrice] = useState(String(sourcePrice));
   const [open,setOpen] = useState(false);
   const [extra,setExtra] = useState(true);
   const [members,setMembers] = useState<Member[]>([{name:"",number:"",size:""}]);
@@ -21,13 +24,13 @@ export function TeamMemberAdditions({itemId, availableSlots, onSaved}: {
   return <form className="form" onSubmit={async event=>{
     event.preventDefault();if(saving.current)return;
     const rows=(extra&&!personalize?[]:members).map(row=>({name:row.name.trim(),number:row.number.trim(),size:row.size.trim()})).filter(row=>row.name||row.number||row.size);
-    const payload=extra?{p_item_id:itemId,p_quantity:Number(quantity),p_roster:rows,p_due_date:due}:{p_item_id:itemId,p_members:rows,p_extra_pieces:false,p_due_date:null};
+    const payload=extra?{p_item_id:itemId,p_quantity:Number(quantity),p_roster:rows,p_due_date:due,p_garment:garment,p_unit_price:Number(unitPrice)}:{p_item_id:itemId,p_members:rows,p_extra_pieces:false,p_due_date:null};
     const signature=JSON.stringify(payload);
     if(request.current?.signature!==signature)request.current={signature,id:crypto.randomUUID()};
     saving.current=true;setBusy(true);setError("");
     try{
       const db=createClient();
-      const {data:orderId,error}=await db.rpc(extra?"add_production_items":"add_team_members",{...payload,p_request_id:request.current.id});
+      const {data:orderId,error}=await db.rpc(extra?"add_production_garment":"add_team_members",{...payload,p_request_id:request.current.id});
       if(error)throw error;
       const {data:order,error:readError}=await db.from("orders").select("order_number").eq("id",orderId).single();
       if(readError)throw readError;
@@ -42,7 +45,11 @@ export function TeamMemberAdditions({itemId, availableSlots, onSaved}: {
         {availableSlots>0&&<option value="existing">Fill existing ordered pieces ({availableSlots} available)</option>}
         <option value="extra">Extra pieces — new add-on order for this team</option>
       </select></label>
-      <p>{extra?"Additional quantities use the selected item and get a linked order with their own production. The saved item price applies automatically.":"Add player details within the existing ordered quantity."}</p>
+      <p>{extra?"Choose the garment requested by the client and confirm its price. A linked add-on order uses the original item?s production service.":"Add player details within the existing ordered quantity."}</p>
+      <p>Original item: <b>{sourceName}</b>{sourceGarment && ` / ${sourceGarment}`}</p>
+      {extra&&<><label>Garment type / Klase ng add-on<select required value={garment} onChange={event=>{setGarment(event.target.value);setUnitPrice(event.target.value===sourceGarment?String(sourcePrice):"");}}><option value="">Choose T-shirt, jersey, polo, etc.</option>{garmentCategories.map(group=><optgroup key={group.label} label={group.label}>{group.options.map(option=><option key={option} value={option}>{option}</option>)}</optgroup>)}</select></label>
+      <label>Price per piece (PHP)<input type="number" min="0" max="9999999999.99" step="0.01" required value={unitPrice} onChange={event=>setUnitPrice(event.target.value)}/></label>
+      <p>Add-on total: <b>PHP {(Number(quantity)*Number(unitPrice)).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2})}</b></p></>}
       {extra&&<label>Additional quantity<input type="number" min="1" max="10000" step="1" required value={quantity} onChange={event=>setQuantity(event.target.value)}/></label>}
       {extra&&<label>Add-on due date<input type="date" required value={due} onChange={event=>setDue(event.target.value)}/></label>}
       {extra&&<label><input type="checkbox" checked={personalize} onChange={event=>setPersonalize(event.target.checked)}/> Include names, numbers or sizes (optional)</label>}

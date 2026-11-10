@@ -12,7 +12,7 @@ test('front desk and artist add team members with fixed prices, fresh production
     grant usage on schema auth to authenticated,anon;`);
   await db.exec(fs.readFileSync('supabase/migrations/202610170001_initial_schema.sql','utf8').replace('create extension if not exists pgcrypto;','').split('-- Create a private storage bucket')[0]);
   await db.exec('alter table production_tasks add column started_by uuid, add column completed_by uuid;');
-  for(const file of ['202610190002_dashboard_persistence.sql','202610190003_catalog_orders.sql','20261022012741_customer_facebook_contact.sql','20261022084023_service_production_routes.sql','20261029082024_dated_customer_downpayments.sql','20261102123339_multi_item_orders.sql','20261104100040_edit_player_rosters.sql','20261106025346_order_permissions_and_deletion_backups.sql','20261107052651_team_member_additions.sql','20261107053434_production_item_addons.sql'])await db.exec(fs.readFileSync('supabase/migrations/'+file,'utf8'));
+  for(const file of ['202610190002_dashboard_persistence.sql','202610190003_catalog_orders.sql','20261022012741_customer_facebook_contact.sql','20261022084023_service_production_routes.sql','20261029082024_dated_customer_downpayments.sql','20261102123339_multi_item_orders.sql','20261104100040_edit_player_rosters.sql','20261106025346_order_permissions_and_deletion_backups.sql','20261107052651_team_member_additions.sql','20261107053434_production_item_addons.sql','20261110134130_production_addon_garment_selection.sql'])await db.exec(fs.readFileSync('supabase/migrations/'+file,'utf8'));
   for(const [n,role] of [[1,'admin'],[2,'front_desk'],[3,'artist'],[4,'printing']]){
     await db.query('insert into auth.users values($1)',[id(n)]);
     await db.query('insert into profiles(id,full_name,role) values($1,$2,$3)',[id(n),'Staff '+n,role]);
@@ -82,6 +82,21 @@ test('front desk and artist add team members with fixed prices, fresh production
     const details=(await db.query('select customization from order_items where order_id=$1',[personalized])).rows[0].customization;
     assert.equal(details.roster.length,1);assert.equal(details.names,'Added 20 #20 L');
   }
+  await actAs(2);
+  const garmentRequest=randomUUID();
+  const addGarment=(garment='T-shirt',price=300,request=garmentRequest)=>db.query('select add_production_garment($1,2,$2::jsonb,current_date+10,$3,$4,$5) as id',[item.id,'[]',request,garment,price]);
+  const garmentOrder=(await addGarment()).rows[0].id;
+  assert.equal((await addGarment()).rows[0].id,garmentOrder);
+  const garmentLine=(await db.query('select * from order_items where order_id=$1',[garmentOrder])).rows[0];
+  assert.equal(garmentLine.product_name,'T-shirt');assert.equal(garmentLine.customization.garment,'T-shirt');assert.equal(Number(garmentLine.unit_price),300);
+  assert.equal(Number((await db.query('select total from orders where id=$1',[garmentOrder])).rows[0].total),600);
+  assert.equal((await db.query('select count(*)::int n from production_tasks where order_id=$1',[garmentOrder])).rows[0].n,6);
+  await assert.rejects(addGarment('Polo shirt'),/different addition/);
+  await assert.rejects(addGarment('T-shirt',301),/different addition/);
+  await assert.rejects(addGarment('',300,randomUUID()),/Choose a garment/);
+  await assert.rejects(addGarment('Polo shirt',-1,randomUUID()),/valid unit price/);
+  assert.equal(Number((await db.query('select unit_price from order_items where id=$1',[item.id])).rows[0].unit_price),500);
+  await actAs(4);await assert.rejects(addGarment('Jersey',300,randomUUID()),/Only admin/);
   await actAs(4);await assert.rejects(addItems(2),/Only admin/);
   await actAs(0);await assert.rejects(addItems(2),/Only admin/);
   await actAs(3);

@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 type Player = { name: string; number: string; size: string };
-type Item = { id: string; product_name: string; quantity: number; customization: { roster?: Player[]; names?: string } };
+type Item = { id: string; product_name: string; quantity: number; unit_price: number; customization: { garment?: string; roster?: Player[]; names?: string } };
 
 export function PlayerList({ orderId, editable, namesOnly = false, canAddMembers=false, orderStatus, refreshToken, onAdded, onSaved }: { canAddMembers?: boolean; orderStatus?: string; refreshToken?: object; onAdded?: (orderNumber:string)=>Promise<void>; orderId: string; editable: boolean; namesOnly?: boolean; onSaved: () => Promise<void> }) {
   const [items, setItems] = useState<Item[]>([]);
@@ -20,7 +20,7 @@ export function PlayerList({ orderId, editable, namesOnly = false, canAddMembers
     let active = true;
     void (async () => {
       try {
-        const { data, error } = await createClient().from("order_items").select("id,product_name,quantity,customization").eq("order_id", orderId).order("created_at").order("id");
+        const { data, error } = await createClient().from("order_items").select("id,product_name,quantity,unit_price,customization").eq("order_id", orderId).order("created_at").order("id");
         if (error) throw error;
         if (active) { setItems(data as Item[]); setSelected(data[0]?.id ?? ""); setLoaded(true); }
       } catch (cause) { if (active) setError(cause instanceof Error ? cause.message : "Could not load player lists."); }
@@ -56,6 +56,6 @@ export function PlayerList({ orderId, editable, namesOnly = false, canAddMembers
       <button type="button" disabled={namesOnly || rows.length >= (item?.quantity ?? 0)} onClick={() => setRows(values => [...values, { name: "", number: "", size: "" }])}>Add player</button>
       <button className="primary-button" type="submit">{busy ? "Saving…" : "Save player list"}</button><button type="button" onClick={() => setEditing(false)}>Cancel</button></fieldset>
     </form> : item && <div style={{ whiteSpace: "pre-wrap" }}>{item.customization?.names || "No player details encoded yet."}</div>}
-    {canAddMembers&&item&&!editing&&onAdded&&orderStatus!=="cancelled"&&<TeamMemberAdditions key={item.id} itemId={item.id} availableSlots={["released","ready_for_release"].includes(orderStatus??"")?0:Math.max(0,item.quantity-(item.customization?.roster?.length??0))} onSaved={onAdded}/>}
+    {canAddMembers&&item&&!editing&&onAdded&&orderStatus!=="cancelled"&&<TeamMemberAdditions key={item.id} itemId={item.id} sourceName={item.product_name} sourceGarment={item.customization?.garment ?? ""} sourcePrice={Number(item.unit_price)} availableSlots={["released","ready_for_release"].includes(orderStatus??"")?0:Math.max(0,item.quantity-(item.customization?.roster?.length??0))} onSaved={onAdded}/>}
   </section>;
 }
