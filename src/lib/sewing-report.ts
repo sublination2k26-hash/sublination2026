@@ -2,10 +2,11 @@ import type { ExportColumn, ExportValue } from "./excel-export";
 
 type Source = {
   tasks: { id: string; order_id: string; order_item_id: string; stage: string; status: string }[];
-  orders: { id: string; order_number: string; due_date: string | null; notes: string | null }[];
+  customers?: { id: string; full_name: string }[];
+  orders: { id: string; customer_id?: string; order_number: string; due_date: string | null; notes: string | null }[];
   items: { id: string; product_name: string; quantity: number; customization: { names?: string }; notes: string | null }[];
   employees: { id: string; full_name: string }[];
-  assignments: { id: string; task_id: string; employee_id: string; quantity: number; assigned_by: string; notes: string; created_at: string }[];
+  assignments: { id: string; task_id: string | null; employee_id: string; quantity: number; assigned_by: string; notes: string; created_at: string }[];
   events: { id: string; assignment_id: string; kind: string; quantity: number; recorded_by: string; notes: string; created_at: string }[];
 };
 export type SewingReport = ReturnType<typeof buildSewingReport>;
@@ -21,14 +22,14 @@ export function buildSewingReport(source: Source, orderId = "", employeeId = "")
   const people = new Map(source.employees.map(row => [row.id, row.full_name]));
   const name = (id: string) => people.get(id) ?? id;
   const summaries = source.assignments.flatMap(assignment => {
-    const task = tasks.get(assignment.task_id);
+    const task = tasks.get(assignment.task_id ?? "");
     const order = task && orders.get(task.order_id);
     const item = task && items.get(task.order_item_id);
     if (!task || !order || !item || (orderId && order.id !== orderId) || (employeeId && assignment.employee_id !== employeeId)) return [];
     const events = source.events.filter(event => event.assignment_id === assignment.id).sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
     const sum = (kind: string) => events.reduce((total, event) => total + (event.kind === kind ? event.quantity : 0), 0);
     const completed = sum("completion"), handed = sum("handoff"), last = events.filter(event => event.kind === "completion").at(-1);
-    return [{ id: assignment.id, orderId: order.id, order: order.order_number, product: item.product_name, sewer: name(assignment.employee_id), employeeId: assignment.employee_id,
+    return [{ id: assignment.id, orderId: order.id, order: order.order_number, team: source.customers?.find(customer => customer.id === order.customer_id)?.full_name ?? "", product: item.product_name, sewer: name(assignment.employee_id), employeeId: assignment.employee_id,
       assignedBy: name(assignment.assigned_by), assignedAt: phDate(assignment.created_at), assigned: assignment.quantity,
       handed, completed, remaining: assignment.quantity - completed, waiting: assignment.quantity - handed, ready: handed - completed,
       rework: sum("rework"), lastOutput: last ? phDate(last.created_at) : "", recordedBy: last ? name(last.recorded_by) : "",
@@ -38,8 +39,8 @@ export function buildSewingReport(source: Source, orderId = "", employeeId = "")
         ...events.map(event => ({ id: event.id, kind: ({ handoff: "Materials handoff", completion: "Sewing completion", rework: "Rework" } as Record<string, string>)[event.kind] ?? event.kind, quantity: event.quantity, recorder: name(event.recorded_by), at: event.created_at, notes: event.notes }))],
     }];
   });
-  const summaryRows: ExportValue[][] = summaries.map(row => [row.order, row.product, row.sewer, row.assignedBy, row.assignedAt, row.assigned, row.handed, row.completed, row.remaining, row.waiting, row.ready, row.rework, row.lastOutput, row.recordedBy, row.status, row.due, [row.notes, row.instructions].filter(Boolean).join(" | "), row.id]);
-  const history = summaries.flatMap(row => row.events.map(event => ({ ...event, order: row.order, product: row.product, sewer: row.sewer, assignmentId: row.id }))).sort((a, b) => a.at.localeCompare(b.at) || a.id.localeCompare(b.id));
+  const summaryRows: ExportValue[][] = summaries.map(row => [row.team ? `${row.team} / ${row.order}` : row.order, row.product, row.sewer, row.assignedBy, row.assignedAt, row.assigned, row.handed, row.completed, row.remaining, row.waiting, row.ready, row.rework, row.lastOutput, row.recordedBy, row.status, row.due, [row.notes, row.instructions].filter(Boolean).join(" | "), row.id]);
+  const history = summaries.flatMap(row => row.events.map(event => ({ ...event, order: row.team ? `${row.team} / ${row.order}` : row.order, product: row.product, sewer: row.sewer, assignmentId: row.id }))).sort((a, b) => a.at.localeCompare(b.at) || a.id.localeCompare(b.id));
   const historyRows: ExportValue[][] = history.map(row => [row.order, row.product, row.sewer, row.kind, row.quantity, row.recorder, phDate(row.at), row.notes, row.assignmentId, row.id]);
   const sewers = new Map<string, { id: string; name: string; orders: Set<string>; assigned: number; handed: number; completed: number; remaining: number; rework: number }>();
   for (const row of summaries) {
@@ -71,7 +72,7 @@ export function sewingReportPrintHtml(report: SewingReport) {
     <p>Assigned: ${report.totals.assigned} | Handed over: ${report.totals.handed} | Completed: ${report.totals.completed} | Remaining: ${report.totals.remaining} | Rework: ${report.totals.rework}</p>
     <p>Completed quantities are recorded sewing output, subject to admin payroll review and QC. Rework is shown separately and does not increase completed pieces.</p>
     <p class="hint">Use Ctrl+P to print again or save as PDF.</p>
-    ${table(["Job order", "Product", "Sewer", "Assigned by", "Assigned", "Handed over", "Completed", "Remaining", "Rework"], report.summaries.map(row => [row.order, row.product, row.sewer, row.assignedBy, row.assigned, row.handed, row.completed, row.remaining, row.rework]))}
+    ${table(["Job order", "Product", "Sewer", "Assigned by", "Assigned", "Handed over", "Completed", "Remaining", "Rework"], report.summaries.map(row => [row.team ? `${row.team} / ${row.order}` : row.order, row.product, row.sewer, row.assignedBy, row.assigned, row.handed, row.completed, row.remaining, row.rework]))}
     ${report.summaries.map(row => `<h2>${escape(row.order)} · ${escape(row.product)} · ${escape(row.sewer)}</h2><p>Assignment: ${escape(row.id)} | Assigned by ${escape(row.assignedBy)} at ${escape(row.assignedAt)} (PH) | Due: ${escape(row.due || "Not set")} | Task: ${escape(row.status)}</p><p>Awaiting handoff: ${row.waiting} | Ready to sew: ${row.ready}</p><p>${escape(row.notes)}${row.instructions ? "\n" + escape(row.instructions) : ""}</p>${table(["Action", "Pieces", "Recorded by", "Recorded at (PH)", "Notes"], row.events.map(event => [event.kind, event.quantity, event.recorder, phDate(event.at), event.notes]))}`).join("")}
     <footer>Figures cover only the selected orders and sewers. Assignment and handoff quantities are movements, not additional finished pieces.</footer></body></html>`;
 }

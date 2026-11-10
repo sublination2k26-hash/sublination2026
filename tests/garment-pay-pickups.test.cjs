@@ -48,6 +48,11 @@ test('garment pay snapshots and atomic payment-covered partial pickups', async t
   await db.query("update order_items set customization=jsonb_build_object('garment','Jersey') where id=$1",[task.order_item_id]);
   const work=async()=> (await db.query("insert into employee_work_records(employee_id,role,activity,task_id,quantity,unit_rate) values ($1,'cutting_sewing','Sewing batch completed',$2,2,999) returning id,unit_rate",[id(3),task.id])).rows[0];
   const first=await work(); assert.equal(Number(first.unit_rate),75);
+  await db.query("update order_items set customization=jsonb_build_object('garment','T-shirt') where id=$1",[task.order_item_id]);
+  assert.equal(Number((await work()).unit_rate),40,'T-shirt uses its own saved garment price');
+  await db.query("update order_items set customization=jsonb_build_object('garment','Shorts') where id=$1",[task.order_item_id]);
+  assert.equal(Number((await work()).unit_rate),30,'unpriced garment uses the default output rate');
+  await db.query("update order_items set customization=jsonb_build_object('garment','Jersey') where id=$1",[task.order_item_id]);
   await db.query("update sewing_garment_rates set unit_rate=80 where employee_id=$1 and garment='Jersey'",[id(3)]);
   assert.equal(Number((await work()).unit_rate),80);
   assert.equal(Number((await db.query('select unit_rate from employee_work_records where id=$1',[first.id])).rows[0].unit_rate),75);

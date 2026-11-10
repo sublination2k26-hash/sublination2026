@@ -4,15 +4,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { readAllRows } from "@/lib/workspace-loading";
 import { buildCompleteSewingExcel, buildSewingReport, printSewingReport } from "@/lib/sewing-report";
+import { garmentCategories } from "@/lib/garment-options";
 import { getOwnSewingRate } from "@/actions/employees";
 import "./sewing.css";
 import { SewingEarnings } from "./sewing-earnings";
 
 type Task = { id: string; order_id: string; order_item_id: string; stage: string; status: string };
-type Item = { id: string; product_name: string; quantity: number; customization: { names?: string }; notes: string | null };
+type Item = { id: string; product_name: string; quantity: number; customization: { names?: string; garment?: string }; notes: string | null };
 type Order = { customer_id: string; id: string; order_number: string; status: string; notes: string | null; due_date: string | null };
 type Employee = { id: string; full_name: string; role: string; active: boolean };
-type Assignment = { id: string; task_id: string; employee_id: string; quantity: number; assigned_by: string; notes: string; created_at: string };
+type Assignment = { id: string; task_id: string | null; employee_id: string; quantity: number; assigned_by: string; notes: string; created_at: string };
 type SewingEvent = { id: string; assignment_id: string; kind: string; quantity: number; recorded_by: string; notes: string; created_at: string };
 type QueueEntry = { task_id: string; available_quantity: number; claimed_quantity: number };
 type Data = { tasks: Task[]; items: Item[]; orders: Order[]; employees: Employee[]; assignments: Assignment[]; events: SewingEvent[]; queue: QueueEntry[] };
@@ -26,6 +27,11 @@ export function SewingManager({ userId, role, initialOrderId = "" }: { userId: s
   const [customers, setCustomers] = useState<{ id: string; full_name: string }[]>([]);
   const [search, setSearch] = useState("");
   const [rate, setRate] = useState<Awaited<ReturnType<typeof getOwnSewingRate>>>({});
+  const [garmentRates, setGarmentRates] = useState<{ garment: string; unit_rate: number }[]>([]);
+  const [ratesError, setRatesError] = useState("");
+  const [ratesLoading, setRatesLoading] = useState(true);
+  const [estimateGarment, setEstimateGarment] = useState("Jersey");
+  const [estimateQuantity, setEstimateQuantity] = useState("1");
   const [selected, setSelected] = useState(initialOrderId);
   const [reportSewer, setReportSewer] = useState("");
   const [loading, setLoading] = useState(true);
@@ -110,9 +116,32 @@ export function SewingManager({ userId, role, initialOrderId = "" }: { userId: s
 
   useEffect(() => {
     let cancelled = false;
-    if (role === "cutting_sewing") void getOwnSewingRate().then(result => { if (!cancelled) setRate(result); });
+    if (role !== "cutting_sewing") return;
+    void Promise.allSettled([
+      getOwnSewingRate(),
+      readAllRows((from, to) => createClient().from("sewing_garment_rates").select("garment,unit_rate").eq("employee_id", userId).order("garment").range(from, to)),
+    ]).then(([defaultRate, garments]) => {
+      if (cancelled) return;
+      setRate(defaultRate.status === "fulfilled" ? defaultRate.value : { error: "Could not load your default sewing rate." });
+      setGarmentRates(garments.status === "fulfilled" ? garments.value as { garment: string; unit_rate: number }[] : []);
+      setRatesError(garments.status === "rejected" ? "Could not load garment rates. Press Refresh to try again." : "");
+      setRatesLoading(false);
+    });
     return () => { cancelled = true; };
-  }, [role]);
+  }, [role, userId, data]);
+  const pricePerPiece = (garment?: string) => {
+    if (ratesLoading) return "Loading rate...";
+    if (rate.error) return rate.error;
+    if (rate.rate === null) return "Rate not configured. Ask admin to set your sewing pay.";
+    if (rate.basis === "fixed") return "Fixed salary (no piece pay)";
+    if (ratesError && garment) return "Garment rate unavailable. Press Refresh to try again.";
+    const price = garmentRates.find(entry => entry.garment === garment)?.unit_rate ?? rate.rate;
+    return price === undefined ? "Rate not configured. Ask admin to set your sewing pay." : `PHP ${Number(price).toFixed(2)} per piece`;
+  };
+  const estimateRate = ratesLoading || rate.error || rate.rate == null || ratesError ? null
+    : rate.basis === "fixed" ? 0 : Number(garmentRates.find(entry => entry.garment === estimateGarment)?.unit_rate ?? rate.rate);
+  const estimatePieces = Number(estimateQuantity);
+  const validEstimate = estimateQuantity.trim() !== "" && Number.isSafeInteger(estimatePieces) && estimatePieces > 0;
   const teamName = (order: Order) => customers.find(customer => customer.id === order.customer_id)?.full_name ?? "Unnamed team";
   const employeeName = (id: string) => data.employees.find(employee => employee.id === id)?.full_name ?? "Staff";
   const totals = (assignmentId: string, kind: string) => data.events.reduce((sum, entry) => sum + (entry.assignment_id === assignmentId && entry.kind === kind ? entry.quantity : 0), 0);
@@ -122,7 +151,7 @@ export function SewingManager({ userId, role, initialOrderId = "" }: { userId: s
     const order = data.orders.find(order => order.id === task.order_id);
     return (!selected || task.order_id === selected) && (!search.trim() || Boolean(order && `${teamName(order)} ${order.order_number}`.toLowerCase().includes(search.trim().toLowerCase())));
   });
-  const report = buildSewingReport(data, selected, canAssign ? reportSewer : userId);
+  const report = buildSewingReport({ ...data, customers }, selected, canAssign ? reportSewer : userId);
   const canReport = !loading && !busy && !error && report.summaries.length > 0;
   async function exportComplete() {
     if (exportLock.current || !canReport) return;
@@ -139,8 +168,22 @@ export function SewingManager({ userId, role, initialOrderId = "" }: { userId: s
   }
 
   return <div className="sewing-workspace">
-    <div className="sewing-toolbar"><label>Search team / JO<input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Team name or JO number"/></label><label>Job order<select value={selected} onChange={event => setSelected(event.target.value)}><option value="">All sewing orders</option>{visibleOrders.map(order => <option key={order.id} value={order.id}>{teamName(order)} / {order.order_number}{order.notes?.startsWith("[SEWING EXAMPLE]") ? " · EXAMPLE" : ""}</option>)}</select></label><button className="filter-button" disabled={busy || loading} onClick={() => void load()}>Refresh</button>{canAssign && <button className="primary-button" disabled={busy || loading} onClick={() => void example()}>Create example order</button>}</div>
-    {role === "cutting_sewing" && <p role="status"><b>Your sewing rate: </b>{rate.error ? rate.error : rate.rate === undefined ? "Loading..." : rate.rate === null ? "Not configured. Ask admin to set your rate." : rate.basis === "fixed" ? "Fixed salary (no piece pay)" : `PHP ${rate.rate.toFixed(2)} per approved piece`}. Output is subject to payroll review.</p>}
+    <div className="sewing-toolbar"><label>Search team / JO<input type="search" value={search} onChange={event => { setSearch(event.target.value); setSelected(""); }} placeholder="Team name or JO number"/></label><label>Team / customer<select value={selected} onChange={event => setSelected(event.target.value)}><option value="">All sewing orders</option>{visibleOrders.map(order => <option key={order.id} value={order.id}>{teamName(order)} / {order.order_number}{order.notes?.startsWith("[SEWING EXAMPLE]") ? " · EXAMPLE" : ""}</option>)}</select></label><button className="filter-button" disabled={busy || loading} onClick={() => void load()}>Refresh</button>{canAssign && <button className="primary-button" disabled={busy || loading} onClick={() => void example()}>Create example order</button>}</div>
+    {role === "cutting_sewing" && <section className="panel sewing-rates" aria-label="Your sewing prices">
+      <h2>Your price per tahi</h2>
+      <p><b>Default rate:</b> {pricePerPiece()}</p>
+      {ratesError && <p role="alert">{ratesError}</p>}
+      {!ratesLoading && !rate.error && rate.rate !== null && rate.basis !== "fixed" && garmentRates.length > 0 && <div className="sewing-rate-list">{garmentRates.map(entry => <div key={entry.garment}><span>{entry.garment}</span><b>PHP {Number(entry.unit_rate).toFixed(2)} / piece</b></div>)}</div>}
+      {!ratesLoading && !ratesError && !rate.error && rate.rate != null && rate.basis !== "fixed" && garmentRates.length === 0 && <p>No separate garment rates saved. The default rate applies.</p>}
+      <div className="sewing-form" role="group" aria-label="Estimate your sewing pay">
+        <b>Estimate your sewing pay</b>
+        <label>Garment<select value={estimateGarment} onChange={event => setEstimateGarment(event.target.value)}>{garmentCategories.map(group => <optgroup key={group.label} label={group.label}>{group.options.map(option => <option key={option}>{option}</option>)}</optgroup>)}</select></label>
+        <label>Pieces<input type="number" min={1} step={1} value={estimateQuantity} onChange={event => setEstimateQuantity(event.target.value)}/></label>
+        <p aria-live="polite">{estimateRate === null ? "Load your current rates to calculate an estimate." : !validEstimate ? "Enter a positive whole number of pieces." : `${estimatePieces} pieces ? PHP ${estimateRate.toFixed(2)} = PHP ${(estimatePieces * estimateRate).toFixed(2)} estimated output pay.`}</p>
+      </div>
+      <p>Estimate only, before deductions and adjustments. Actual output pay uses the rate saved at completion and requires payroll approval.</p>
+      <p>These are your current rates. Completed output keeps its saved rate and is subject to payroll review.</p>
+    </section>}
     {role === "cutting_sewing" && <SewingEarnings userId={userId} refreshToken={data}/>}
     <p>New sewing orders automatically appear in every sewer’s shared queue. Each sewer chooses a quantity and assigns those pieces to themselves. Front Desk records the materials handoff after earlier stages are complete; each sewer records their own output.</p>
     {notice && <p role="status" className="sewing-notice">{notice}</p>}
@@ -155,7 +198,7 @@ export function SewingManager({ userId, role, initialOrderId = "" }: { userId: s
       </div>
       <p>Excel includes three sheets: Sewer totals, Order breakdown, and Activity history. Choose All sewing orders and All assigned sewers to include every sewer’s recorded work. Rework does not add to completed pieces. Each sheet is ready to print with repeating headers.</p>
       <div className="sewing-totals"><span>Assigned<b>{report.totals.assigned}</b></span><span>Handed over<b>{report.totals.handed}</b></span><span>Completed<b>{report.totals.completed}</b></span><span>Remaining<b>{report.totals.remaining}</b></span><span>Rework<b>{report.totals.rework}</b></span></div>
-      <div className="table-wrap"><table><thead><tr><th>JOB ORDER / PRODUCT</th><th>ASSIGNED SEWER</th><th>ASSIGNED BY / DATE</th><th>ASSIGNED</th><th>HANDED OVER</th><th>COMPLETED</th><th>REMAINING</th><th>REWORK</th><th>LAST OUTPUT RECORDER / DATE</th></tr></thead><tbody>{report.summaries.map(row => <tr key={row.id}><td><b>{row.order}</b><small>{row.product}</small></td><td>{row.sewer}</td><td>{row.assignedBy}<small>{row.assignedAt}</small></td><td>{row.assigned}</td><td>{row.handed}</td><td><b>{row.completed}</b></td><td>{row.remaining}</td><td>{row.rework}</td><td>{row.recordedBy || "No output yet"}<small>{row.lastOutput}</small></td></tr>)}</tbody></table></div>
+      <div className="table-wrap"><table><thead><tr><th>JOB ORDER / PRODUCT</th><th>ASSIGNED SEWER</th><th>ASSIGNED BY / DATE</th><th>ASSIGNED</th><th>HANDED OVER</th><th>COMPLETED</th><th>REMAINING</th><th>REWORK</th><th>LAST OUTPUT RECORDER / DATE</th></tr></thead><tbody>{report.summaries.map(row => <tr key={row.id}><td><b>{row.team || row.order}</b><small>{row.order} ? {row.product}</small></td><td>{row.sewer}</td><td>{row.assignedBy}<small>{row.assignedAt}</small></td><td>{row.assigned}</td><td>{row.handed}</td><td><b>{row.completed}</b></td><td>{row.remaining}</td><td>{row.rework}</td><td>{row.recordedBy || "No output yet"}<small>{row.lastOutput}</small></td></tr>)}</tbody></table></div>
       {report.summaries.length === 0 && <p>No recorded assignments match this report.</p>}
     </section>}
     {loading ? <p role="status">Loading sewing work…</p> : tasks.length === 0 ? <p>No sewing orders found.{canAssign ? " Create a garment order or use the example above." : " New orders that include sewing will appear here automatically."}</p> : tasks.map(task => {
@@ -173,7 +216,8 @@ export function SewingManager({ userId, role, initialOrderId = "" }: { userId: s
       const available = availability ? Number(availability.available_quantity) : 0;
       const history = data.events.filter(entry => assignments.some(a => a.id === entry.assignment_id));
       return <section key={task.id} className="panel sewing-order">
-        <div className="panel-heading"><div><div className="section-kicker">{teamName(order)} / {order.order_number}{order.notes?.startsWith("[SEWING EXAMPLE]") ? " · EXAMPLE" : ""}</div><h2>{item.product_name}</h2><p>{item.quantity} pieces in order · Due {order.due_date || "not set"}</p></div><span className="pill blue">{closed ? order.status.replaceAll("_", " ") : task.status === "completed" ? "Sewing completed" : ready ? "Ready for handoff / sewing" : "Waiting for materials"}</span></div>
+        <div className="panel-heading"><div><div className="section-kicker">{order.order_number}{order.notes?.startsWith("[SEWING EXAMPLE]") ? " · EXAMPLE" : ""}</div><h2>{teamName(order)}</h2><p><b>{item.product_name}</b></p><p>{item.quantity} pieces in order · Due {order.due_date || "not set"}</p></div><span className="pill blue">{closed ? order.status.replaceAll("_", " ") : task.status === "completed" ? "Sewing completed" : ready ? "Ready for handoff / sewing" : "Waiting for materials"}</span></div>
+        {role === "cutting_sewing" && <p className="sewing-job-rate"><b>Your price per tahi{item.customization?.garment ? ` (${item.customization.garment})` : ""}:</b> {pricePerPiece(item.customization?.garment)}</p>}
         <div className="sewing-stages">{sequence.map(stage => { const stageTask = data.tasks.find(value => value.order_item_id === task.order_item_id && value.stage === stage); return stageTask ? <span key={stage} className={stageTask.status === "completed" ? "sewing-stage-done" : ""}>{stageNames[stage]} · {stageTask.status.replaceAll("_", " ")}</span> : null; })}</div>
         {availability && <p><b>{available} pieces available to claim</b> · {Number(availability.claimed_quantity)} pieces already reserved across all sewers.</p>}
         {role === "cutting_sewing" && !closed && available > 0 && <form className="sewing-form" onSubmit={event => void save(event, "claim", task.id)}><b>Choose pieces for yourself</b><label>Pieces to take<input name="quantity" type="number" min={1} max={available} step={1} required disabled={busy}/></label><label>Bundle / sizes / notes<input name="notes" maxLength={1000} disabled={busy}/></label><button className="primary-button" disabled={busy}>Assign to me</button><small>This reserves pieces under your own account. Front Desk confirms the materials handoff before sewing output can be recorded.</small></form>}

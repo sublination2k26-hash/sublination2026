@@ -92,3 +92,15 @@ test('complete sewing workbook includes every sewer total, order breakdown and d
   const sameNames=tools.buildSewingReport({...source,employees:source.employees.map(person=>({...person,full_name:'Same name'}))});
   assert.equal(sameNames.sewerRows.length,2,'employees with identical names are not merged');
 });
+
+test('team names appear in sewing screens, exports and print while preserving JO numbers', () => {
+  const tools=load('src/lib/sewing-report.ts');
+  const named={...source,customers:[{id:'team',full_name:'Dale <Team>'}],orders:source.orders.map(order=>({...order,customer_id:'team'}))};
+  const report=tools.buildSewingReport(named);
+  assert.equal(report.summaries[0].team,'Dale <Team>');
+  assert.ok(report.summaryRows.every(row=>row[0].startsWith('Dale <Team> / JO-')));
+  assert.ok(report.historyRows.every(row=>row[0].startsWith('Dale <Team> / JO-')));
+  const html=tools.sewingReportPrintHtml(report);
+  assert.ok(html.includes('Dale &lt;Team&gt; / JO-'));
+  assert.ok(!html.includes('Dale <Team>'));
+});
