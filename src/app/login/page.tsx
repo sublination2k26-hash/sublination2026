@@ -4,6 +4,7 @@ import { PasswordField } from "@/components/ui/password-field";
 
 import { BrandLogo } from "@/components/ui/brand-logo";
 import { useEffect, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { AlertCircle } from "lucide-react";
 import "./login-qr.css";
 import { createClient, supabaseConfigured } from "@/lib/supabase/client";
@@ -69,6 +70,7 @@ export default function LoginPage() {
     <PasswordField id="login-password" name="password" label="Password" required autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} placeholder="Your password"/>
     <label><input type="checkbox" checked={rememberUsername} onChange={event => { setRememberUsername(event.target.checked); if (!event.target.checked) { try { localStorage.removeItem("subli.login.username.v1"); } catch {} } }}/> Remember my username on this device</label>
     <button className="primary-button" type="submit" disabled={!supabaseConfigured || busy}>{busy ? "Signing in…" : "Sign in"}</button>
+    <Link href="/forgot-password">Forgot password?</Link>
     <small>Use the login ID and password provided by your admin. Existing email accounts can still sign in with their email.</small>
     <small>Allow your browser to save your login for autofill next time. You stay signed in on this browser until you sign out or your session expires.</small>
   </form></div></main>;

@@ -118,3 +118,11 @@ test('the installed Supabase SDK refreshes an expired access token and persists 
   assert.equal(back.status,307);assert.equal(back.headers.get('location'),'https://shop.test/dashboard');
   assert.equal(refreshes,1,'Back must reuse the refreshed session instead of the expired token');
 });
+
+test('password recovery pages are public and keep authenticated users on the reset form',async()=>{
+ for(const path of ['/forgot-password','/reset-password','/auth/callback?code=reset&next=/reset-password']){
+  const signedOut=await runMiddleware(path,{noUser:true});assert.equal(signedOut.response.status,200);
+  const signedIn=await runMiddleware(path,{refresh:true});assert.equal(signedIn.response.status,200);
+  assert.match(signedIn.response.headers.get('cache-control'),/no-store/);
+ }
+});

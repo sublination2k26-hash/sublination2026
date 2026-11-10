@@ -11,9 +11,9 @@ function noCache(response: NextResponse) {
 export async function middleware(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const isPublic = request.nextUrl.pathname === "/login" || request.nextUrl.pathname === "/auth/callback";
+  const isPublic = request.nextUrl.pathname === "/login" || request.nextUrl.pathname === "/auth/callback" || request.nextUrl.pathname === "/forgot-password" || request.nextUrl.pathname === "/reset-password";
   if (!url || !publishableKey) {
-    if (request.nextUrl.pathname === "/login") return noCache(NextResponse.next());
+    if (isPublic) return noCache(NextResponse.next());
     const target = request.nextUrl.clone();
     target.pathname = "/login";
     target.search = "";

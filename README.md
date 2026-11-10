@@ -181,3 +181,10 @@ Apply `supabase/migrations/20261106025346_order_permissions_and_deletion_backups
 Admin deletion saves a transactional JSON snapshot in `deleted_order_backups` before cascade deletion. If backup fails, deletion rolls back. Only admin can read/export backups from Orders ? Download deleted order backups. Snapshots include related database rows and artwork references, not copies of Storage file contents. Restoration is manual; no restore button is provided. Backups cover deletions after this migration, not older deletions.
 
 Login can remember a username on the device; passwords are saved through browser password-manager autofill. Dashboard collection/outstanding summary widgets are admin-only. Existing payment/order details and database read permissions remain available to staff; this display restriction does not make underlying financial data private.
+
+
+### Password recovery
+
+The login screen links to `/forgot-password`. Email accounts request a Supabase recovery email, which returns through `/auth/callback?next=/reset-password` to the new password form. In Supabase **Authentication ? URL Configuration**, set the production Site URL and allow `https://YOUR-DOMAIN/auth/callback?next=/reset-password`. Allow `http://localhost:3000/auth/callback?next=/reset-password` for local development. Configure Supabase Auth email delivery/SMTP for real employee addresses. Reset links must be opened in the browser that requested them because this app uses PKCE.
+
+Accounts using only employee IDs (`staff.sublime.invalid`) have no deliverable inbox. An admin resets those accounts through **Employees ? Edit employee ? New password**. Existing payroll and application data are unaffected by password recovery.

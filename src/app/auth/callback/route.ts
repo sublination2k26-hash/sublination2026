@@ -20,5 +20,5 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(destination);
     }
   }
-  return NextResponse.redirect(new URL("/login?error=invite", request.url));
+  return NextResponse.redirect(new URL(next === "/reset-password" ? "/forgot-password?error=recovery" : "/login?error=invite", request.url));
 }
