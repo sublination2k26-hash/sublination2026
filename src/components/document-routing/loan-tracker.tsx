@@ -77,7 +77,7 @@ function LoanTracker() {
   const dueToday = summaries.filter(item => !item.loan.archived_at && item.tracking.status === "Due today");
   const dueSoon = summaries.filter(item => !item.loan.archived_at && item.tracking.status === "Due soon");
   const shown = summaries.filter(item => item.loan.borrower_name.toLowerCase().includes(query.toLowerCase()) &&
-    (filter === "archived" ? Boolean(item.loan.archived_at) : !item.loan.archived_at && (filter !== "overdue" || item.tracking.status === "Overdue")))
+    (filter === "archived" ? Boolean(item.loan.archived_at) || item.tracking.settled : !item.loan.archived_at && !item.tracking.settled && (filter !== "overdue" || item.tracking.status === "Overdue")))
     .sort((a, b) => Number(b.tracking.status === "Overdue") - Number(a.tracking.status === "Overdue") || (a.tracking.due ?? "9999").localeCompare(b.tracking.due ?? "9999"));
   async function run(action: () => Promise<void>) {
     if (working.current) return;
@@ -137,6 +137,26 @@ function LoanTracker() {
       setSelected(null); setNotice(loan.archived_at ? "Loan restored to the active list." : "Fully paid loan removed from active reminders. History is in Archived / Paid.");
     });
   }
+  async function rename(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (!loan) return;
+    const name = String(new FormData(event.currentTarget).get("borrower_name") ?? "").trim();
+    await run(async () => {
+      const { data, error: cause } = await createClient().from("personal_loans").update({ borrower_name: name }).eq("id", loan.id).select(loanColumns).single();
+      if (cause) throw cause;
+      setLoans(current => current.map(item => item.id === loan.id ? data as PersonalLoan : item));
+      setNotice("Borrower name updated.");
+    });
+  }
+  async function removeLoan() {
+    if (!loan || !window.confirm(`Permanently delete the loan for ${loan.borrower_name} and all its payments?`)) return;
+    await run(async () => {
+      const { error: cause } = await createClient().rpc("delete_personal_loan", { p_id: loan.id });
+      if (cause) throw cause;
+      setLoans(current => current.filter(item => item.id !== loan.id));
+      setPayments(current => current.filter(item => item.loan_id !== loan.id));
+      setSelected(null); requestId.current = null; setNotice("Loan and payment history deleted.");
+    });
+  }
   async function undo(payment: LoanPayment) {
     if (!window.confirm(`Remove this payment of ${money(Number(payment.principal_amount) + Number(payment.interest_amount))}? The unpaid balance and reminders will be restored.`)) return;
     await run(async () => {
@@ -173,6 +193,8 @@ function LoanTracker() {
     </article>)}</div>{!shown.length && <p>No loans in this list.</p>}
     {loan && tracking && <section className="loan-detail" aria-label={`Loan details for ${loan.borrower_name}`}>
       <div className="employee-manager-heading"><div><h3 ref={detailHeading} tabIndex={-1}>{loan.borrower_name}</h3><p>Started {loan.start_date} · Original principal {money(Number(loan.principal))} · Due day {loan.due_day}</p></div><button type="button" className="secondary-button" disabled={busy} onClick={() => { setSelected(null); requestId.current = null; }}>Close details</button></div>
+      <form key={`rename-${loan.id}`} className="employee-form" onSubmit={rename}><label>Borrower name<input name="borrower_name" required maxLength={200} defaultValue={loan.borrower_name} disabled={busy}/></label><button type="submit" className="secondary-button" disabled={busy}>Save name</button></form>
+      <p>To correct loan amounts or terms, delete the incorrect loan and enter it again with the correct details.</p><button type="button" className="secondary-button" disabled={busy} onClick={() => void removeLoan()}>Delete loan and payments</button>
       {tracking.unpaid.length > 0 && <div className="loan-unpaid"><h4>Unpaid interest</h4><ul>{tracking.unpaid.map(item => <li key={item.due}>{item.due}: {money(item.balance)} unpaid{item.due < today ? " — Overdue" : item.due === today ? " — Due today" : " — Upcoming"}</li>)}</ul></div>}
       <p>Principal balance: <b>{money(tracking.principalBalance)}</b> · Interest due: <b>{money(tracking.interestBalance)}</b></p>
       {!loan.archived_at && !tracking.settled && <form key={loan.id} className="employee-form" onSubmit={recordPayment}><h4>Record payment / Magtala ng bayad</h4><fieldset disabled={busy}><div className="employee-form-fields">
@@ -182,7 +204,7 @@ function LoanTracker() {
         <label>Interest payment (PHP)<input name="interest_amount" type="number" min="0" max={tracking.unpaid.find(item => item.due === interestDate)?.balance ?? 0} step="0.01" defaultValue="0" required/></label>
         <label>Notes / Reference<input name="notes" maxLength={1000}/></label>
       </div><p className="loan-help">Select the due date covered by the interest payment. One-time interest can be paid early. For monthly loans, record separate payments for different months. Partial payments are allowed.</p><button className="primary-button" type="submit">{busy ? "Saving…" : "Save payment"}</button></fieldset></form>}
-      {(tracking.settled || loan.archived_at) && <button type="button" className="secondary-button" disabled={busy} onClick={archive}>{loan.archived_at ? "Restore to active list" : "Fully paid — Remove from active list"}</button>}
+      {(tracking.settled || loan.archived_at) && <button type="button" className="secondary-button" disabled={busy} onClick={archive}>{loan.archived_at ? "Unarchive loan" : "Fully paid — Remove from active list"}</button>}
       <h4>Payment history</h4><ul className="loan-history">{history.map(payment => <li key={payment.id}><div><b>{payment.paid_on}</b><p>Principal: {money(Number(payment.principal_amount))} · Interest: {money(Number(payment.interest_amount))}{payment.interest_due_date ? ` for ${payment.interest_due_date}` : ""}</p>{payment.notes && <p>{payment.notes}</p>}</div>{!loan.archived_at && <button type="button" className="secondary-button" disabled={busy} onClick={() => undo(payment)}>Undo payment</button>}</li>)}</ul>{!history.length && <p>No payments recorded yet.</p>}
     </section>}</>}
   </section>;

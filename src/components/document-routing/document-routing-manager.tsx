@@ -16,6 +16,7 @@ export function DocumentRoutingManager({ initialDocuments }: { initialDocuments:
   const [selected, setSelected] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [stageFilter, setStageFilter] = useState("");
+  const [paymentFilter, setPaymentFilter] = useState("pending");
   const [busy, setBusy] = useState(false);
   const saving = useRef(false);
   const [error, setError] = useState("");
@@ -52,6 +53,18 @@ export function DocumentRoutingManager({ initialDocuments }: { initialDocuments:
     setError("");
     try { printRoutingDocument(item); }
     catch (cause) { setError(message(cause)); }
+  }
+  async function remove(item: RoutingDocument) {
+    if (saving.current || !window.confirm(`Delete ${item.pr_number} and all its routing history permanently?`)) return;
+    saving.current = true; setBusy(true); setError(""); setNotice("");
+    try {
+      const { error: cause } = await createClient().rpc("delete_routing_document", { p_id: item.id });
+      if (cause) throw cause;
+      setDocuments(current => current.filter(record => record.id !== item.id));
+      if (selected === item.id) setSelected(null);
+      setNotice("Document and routing history deleted.");
+    } catch (cause) { setError(message(cause)); }
+    finally { saving.current = false; setBusy(false); }
   }
   async function save(event: FormEvent<HTMLFormElement>, routing = false) {
     event.preventDefault();
@@ -98,17 +111,18 @@ export function DocumentRoutingManager({ initialDocuments }: { initialDocuments:
     } catch (cause) { setError(message(cause)); }
     finally { saving.current = false; setBusy(false); }
   }
-  const shown = documents.filter(item => (!stageFilter || latestStage(item) === stageFilter) && `${item.pr_number} ${item.po_number} ${item.title} ${item.payee}`.toLowerCase().includes(query.toLowerCase()));
+  const shown = documents.filter(item => (paymentFilter === "all" || (paymentFilter === "paid" ? Boolean(item.released_date) : !item.released_date)) && (!stageFilter || latestStage(item) === stageFilter) && `${item.pr_number} ${item.po_number} ${item.title} ${item.payee}`.toLowerCase().includes(query.toLowerCase()));
   return <section className="employee-manager document-routing">
     <div className="employee-manager-heading"><div><h2>Document register</h2><p>{documents.length} documents · {documents.filter(item => item.released_date).length} payments released</p></div><button className="primary-button routing-new-document" disabled={busy} onClick={() => choose(null)}><Plus size={17} aria-hidden="true"/>New document</button></div>
     {error && !formOpen && !officeOpen && <p className="employee-error" role="alert">{error}</p>}
     {notice && <p className="employee-notice" role="status">{notice}</p>}
     <div className="employee-form-fields">
+      <label>Payment status<select value={paymentFilter} onChange={event => setPaymentFilter(event.target.value)}><option value="pending">Pending / Hindi pa bayad</option><option value="paid">Paid / Released records</option><option value="all">All documents</option></select></label>
       <label>Search documents<input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="PR, PO, description or payee"/></label>
       <label>Current office<select value={stageFilter} onChange={event => setStageFilter(event.target.value)}><option value="">All stages</option>{routingStages.map(stage => <option key={stage}>{stage}</option>)}</select></label>
     </div>
     <div className="employee-table-wrap routing-table" role="region" aria-label="Document register" tabIndex={0}><table><thead><tr><th>PR / PO</th><th>DESCRIPTION / PAYEE</th><th>REQUEST DATE</th><th>AMOUNT</th><th>CURRENT STAGE</th><th>STAGE UPDATED (PH)</th><th>PAYMENT</th><th>ACTION</th></tr></thead><tbody>
-      {shown.map(item => <tr key={item.id}><td><b>{item.pr_number}</b><br/>{item.po_number || "—"}</td><td>{item.title}<br/>{item.payee}</td><td>{item.request_date}</td><td>{money(item.amount)}</td><td>{latestStage(item)}</td><td>{latestStageUpdatedAt(item) ? <time dateTime={latestStageUpdatedAt(item)!}>{new Date(latestStageUpdatedAt(item)!).toLocaleString("en-PH", { timeZone: "Asia/Manila" })}</time> : "—"}</td><td>{item.released_date ? `Released ${item.released_date}` : "Pending"}</td><td><div className="routing-actions"><button type="button" className="secondary-button" disabled={busy} onClick={() => { setSelected(item.id); setError(""); setNotice(""); setOfficeOpen(true); }} aria-label={`Update stage for ${item.pr_number}`}><ArrowRightLeft size={16} aria-hidden="true"/>Update stage</button><button className="secondary-button" disabled={busy} onClick={() => choose(item.id)} aria-label={`Open ${item.pr_number}`}><FilePenLine size={16} aria-hidden="true"/>Open</button><button type="button" className="secondary-button" disabled={busy} onClick={() => print(item)} aria-label={`Print ${item.pr_number}`}><Printer size={16} aria-hidden="true"/>Print</button></div></td></tr>)}
+      {shown.map(item => <tr key={item.id}><td><b>{item.pr_number}</b><br/>{item.po_number || "—"}</td><td>{item.title}<br/>{item.payee}</td><td>{item.request_date}</td><td>{money(item.amount)}</td><td>{latestStage(item)}</td><td>{latestStageUpdatedAt(item) ? <time dateTime={latestStageUpdatedAt(item)!}>{new Date(latestStageUpdatedAt(item)!).toLocaleString("en-PH", { timeZone: "Asia/Manila" })}</time> : "—"}</td><td>{item.released_date ? `Released ${item.released_date}` : "Pending"}</td><td><div className="routing-actions"><button type="button" className="secondary-button" disabled={busy} onClick={() => { setSelected(item.id); setError(""); setNotice(""); setOfficeOpen(true); }} aria-label={`Update stage for ${item.pr_number}`}><ArrowRightLeft size={16} aria-hidden="true"/>Update stage</button><button className="secondary-button" disabled={busy} onClick={() => choose(item.id)} aria-label={`Open ${item.pr_number}`}><FilePenLine size={16} aria-hidden="true"/>Open</button><button type="button" className="secondary-button" disabled={busy} onClick={() => print(item)} aria-label={`Print ${item.pr_number}`}><Printer size={16} aria-hidden="true"/>Print</button><button type="button" className="secondary-button" disabled={busy} onClick={() => void remove(item)} aria-label={`Delete ${item.pr_number}`}>Delete</button></div></td></tr>)}
     </tbody></table>{shown.length === 0 && <p className="empty-inline">No documents match. Select New document or adjust the filters.</p>}</div>
     <dialog ref={dialog} className="routing-document-dialog" aria-labelledby={titleId} onCancel={event => { if (saving.current) event.preventDefault(); else setFormOpen(false); }} onClose={() => setFormOpen(false)}>
     <div className="routing-dialog-heading"><h2 id={titleId}>{document ? `Edit ${document.pr_number}` : "New document"}</h2><button type="button" className="secondary-button" disabled={busy} onClick={() => setFormOpen(false)} aria-label="Close document form">Close</button></div>
