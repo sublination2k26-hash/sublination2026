@@ -199,7 +199,27 @@ export default function Home() {
       if(error)throw new Error("Order saved, but sewer assignment needs to finish. Retry saving: "+error.message);
     });const {data:{user}}=await supabase.auth.getUser();for(const file of data.files){const path=`${dbId}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g,"_")}`;const {error:uploadError}=await supabase.storage.from("design-files").upload(path,file);if(uploadError)throw uploadError;const {error:recordError}=await supabase.from("design_files").insert({order_id:dbId,order_item_id:item.id,storage_path:path,file_name:file.name,file_kind:"reference",uploaded_by:user?.id});if(recordError)throw recordError;}const refreshed=await loadSharedDashboard(supabase);setOrders(refreshed.orders);setExtraCustomers(refreshed.customers);setProducts(refreshed.products);setModal(null);setSelected(refreshed.orders.find(o=>o.dbId===dbId)?.id??null);const savedOrder=refreshed.orders.find(o=>o.dbId===dbId);if(savedOrder?.productionTasks.some(task=>task.stage==="sewing")){router.push(`/sewing?order=${dbId}`);}flash(data.sewingAssignments.length?"Job order saved and assigned to the selected sewers.":"Job order saved. It is available to all sewers in the shared sewing queue.");}catch(error){reportError(error);}};
   const saveOrderEdit=async(id:string,data:{customer:string;phone:string;productId:string;qty:number;due:string;names:string;notes:string})=>{if(!isAdmin)return;const order=orders.find(item=>item.id===id);if(!order)return;try{const db=createClient();const {data:existingItem,error:readError}=await db.from("order_items").select("id,customization").eq("id",order.itemId).single();if(readError)throw readError;const {error}=await db.rpc("update_catalog_order",{p_order_id:order.dbId,p_customer_name:data.customer,p_phone:data.phone,p_product_id:data.productId,p_quantity:data.qty,p_due_date:data.due||null,p_names:data.names,p_notes:data.notes});if(error)throw error;const {error:detailsError}=await db.from("order_items").update({customization:{...(existingItem.customization as Record<string,unknown>),names:data.names}}).eq("id",existingItem.id).select("id").single();if(detailsError)throw detailsError;await refreshSharedData();setModal(null);flash(`Order ${id} updated in Supabase.`);}catch(error){reportError(error);}};
-  const deleteOrder=async(order:Order)=>{if(!isAdmin)return;if(!window.confirm(`Delete ${order.id} for ${order.customer}? A backup will be saved before removing the order and its related records.`))return;try{const {data,error}=await createClient().from("orders").delete().eq("id",order.dbId).select("id");if(error)throw error;if(!data?.length)throw new Error("Supabase did not delete the order. Check your admin role and migration.");await refreshSharedData();setSelected(null);flash(`Order ${order.id} deleted. Backup saved.`);}catch(error){reportError(error);}};
+  const deleteOrder=async(order:Order)=>{
+    if(!isAdmin)return;
+    if(!window.confirm(`Delete ${order.id} for ${order.customer}? A backup will be saved before removing the order and its related records.`))return;
+    try{
+      const {data,error}=await createClient().from("orders").delete().eq("id",order.dbId).select("id");
+      if(error)throw error;
+      if(!data?.length)throw new Error("Supabase did not delete the order. Check your admin role and migration.");
+    }catch(error){
+      const detail=error instanceof Error?error.message:typeof error==="object"&&error!==null&&"message" in error?String(error.message):"Supabase could not delete this order.";
+      window.alert(`Order ${order.id} was not deleted.\n\n${detail}`);
+      return;
+    }
+    setOrders(previous=>previous.filter(item=>item.dbId!==order.dbId));
+    setSelected(null);
+    try{
+      await refreshSharedData();
+      flash(`Order ${order.id} deleted. Backup saved.`);
+    }catch{
+      window.alert(`Order ${order.id} was deleted and backed up, but the workspace could not refresh. Reload the page to update the remaining records.`);
+    }
+  };
   const addPayment=async(payment:PaymentInput)=>{if(profile?.role!=="admin"&&profile?.role!=="front_desk")throw new Error("Only admin or front desk can record payments.");if(!current)throw new Error("Select an order first.");const {error}=await createClient().rpc("record_customer_payment",{p_order_id:current.dbId,p_amount:payment.amount,p_method:dbMethod[payment.method]??"other",p_kind:payment.kind,p_payment_on:payment.date,p_notes:payment.note,p_request_id:payment.requestId});if(error)throw error;await refreshSharedData();setModal(null);flash("Payment recorded. All earlier down payments remain in the customer history.");};
   const addDefect=async(data:{requestId:string;category:string;description:string;originStage:string;destination:string;action:string;component:string})=>{
     if(!current)return;
