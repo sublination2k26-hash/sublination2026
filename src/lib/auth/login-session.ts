@@ -9,8 +9,7 @@ export function watchLoginSession(browser: Pick<Window,"location"|"addEventListe
     pending=true;
     try {
       if(await verify() && !disposed && browser.location.pathname==="/login") {
-        const next=new URLSearchParams(browser.location.search).get("next");
-        browser.location.replace(next==="/scan-qr"?"/scan-qr":"/dashboard");
+        browser.location.replace("/dashboard");
       }
     } catch { /* A failed check leaves the login form available for retry. */ }
     finally {pending=false;if(!disposed)onChecked();}

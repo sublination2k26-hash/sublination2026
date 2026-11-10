@@ -1,5 +1,5 @@
-import { QrCheckIn } from "@/components/attendance/qr-check-in";
+import { redirect } from "next/navigation";
 
-export default function ScanQrPage() {
-  return <QrCheckIn/>;
+export default function RemovedPage() {
+  redirect("/dashboard");
 }

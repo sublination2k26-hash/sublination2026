@@ -4,8 +4,7 @@ import { PasswordField } from "@/components/ui/password-field";
 
 import { BrandLogo } from "@/components/ui/brand-logo";
 import { useEffect, useState, type FormEvent } from "react";
-import { AlertCircle, ScanLine } from "lucide-react";
-import Link from "next/link";
+import { AlertCircle } from "lucide-react";
 import "./login-qr.css";
 import { createClient, supabaseConfigured } from "@/lib/supabase/client";
 import { employeeLoginToAuthEmail } from "@/lib/auth/employee-login";
@@ -49,8 +48,7 @@ export default function LoginPage() {
       });
       if (authError) throw authError;
       try { if (rememberUsername) localStorage.setItem("subli.login.username.v1", String(credentials.get("username") ?? "")); else localStorage.removeItem("subli.login.username.v1"); } catch {}
-      const next = new URLSearchParams(window.location.search).get("next");
-      window.location.replace(next === "/scan-qr" ? "/scan-qr" : "/dashboard");
+      window.location.replace("/dashboard");
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : "Could not sign in.";
       const connectionFailed = /failed to fetch|fetch failed|networkerror|network request failed|load failed/i.test(message);
@@ -73,5 +71,5 @@ export default function LoginPage() {
     <button className="primary-button" type="submit" disabled={!supabaseConfigured || busy}>{busy ? "Signing in…" : "Sign in"}</button>
     <small>Use the login ID and password provided by your admin. Existing email accounts can still sign in with their email.</small>
     <small>Allow your browser to save your login for autofill next time. You stay signed in on this browser until you sign out or your session expires.</small>
-  </form><Link href="/scan-qr" className="login-qr-card"><span className="login-qr-icon"><ScanLine size={48}/></span><h2>Scan QR</h2><p>Fast-track attendance or check-in using your personalized QR code.</p><small>No login needed for attendance</small></Link></div></main>;
+  </form></div></main>;
 }

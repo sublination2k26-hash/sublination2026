@@ -11,9 +11,9 @@ function noCache(response: NextResponse) {
 export async function middleware(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const isPublic = request.nextUrl.pathname === "/login" || request.nextUrl.pathname === "/auth/callback" || request.nextUrl.pathname === "/scan-qr";
+  const isPublic = request.nextUrl.pathname === "/login" || request.nextUrl.pathname === "/auth/callback";
   if (!url || !publishableKey) {
-    if (request.nextUrl.pathname === "/login" || request.nextUrl.pathname === "/scan-qr") return noCache(NextResponse.next());
+    if (request.nextUrl.pathname === "/login") return noCache(NextResponse.next());
     const target = request.nextUrl.clone();
     target.pathname = "/login";
     target.search = "";
@@ -64,7 +64,7 @@ export async function middleware(request: NextRequest) {
     }
     if (isLogin) {
       const target = request.nextUrl.clone();
-      target.pathname = request.nextUrl.searchParams.get("next") === "/scan-qr" ? "/scan-qr" : "/dashboard";
+      target.pathname = "/dashboard";
       target.search = "";
       return finish(NextResponse.redirect(target));
     }

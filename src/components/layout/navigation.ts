@@ -10,7 +10,6 @@ export const workspaceNavigation = [
   { label: "Document Routing", href: "/document-routing" },
   { label: "Messages", href: "/messages" },
   { label: "Employees", href: "/employees" },
-  { label: "Time In & Out", href: "/attendance" },
   { label: "Payroll", href: "/payroll" },
   { label: "My Salary", href: "/salary" },
   { label: "Job orders", href: "/dashboard?view=Job%20orders" },

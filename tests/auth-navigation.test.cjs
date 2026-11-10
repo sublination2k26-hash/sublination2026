@@ -81,7 +81,7 @@ test('a cached login restored by browser Back rechecks Auth and returns an activ
 test('login restoration never invents a session, leaves a different page alone and cancels work on unmount',async()=>{
   const failed=loginWatcher(async()=>{throw new Error('Offline');});await flush();assert.equal(failed.redirects.length,0);assert.equal(failed.checked(),1);failed.dispose();
   let resolve;const pending=loginWatcher(()=>new Promise(done=>{resolve=done;}));pending.dispose();resolve(true);await flush();assert.equal(pending.redirects.length,0);
-  const qr=loginWatcher(async()=>true,'?next=/scan-qr');await flush();assert.deepEqual(qr.redirects,['/scan-qr']);qr.dispose();
+  const qr=loginWatcher(async()=>true,'?next=/scan-qr');await flush();assert.deepEqual(qr.redirects,['/dashboard']);qr.dispose();
   const unsafe=loginWatcher(async()=>true,'?next=https://other.test');await flush();assert.deepEqual(unsafe.redirects,['/dashboard']);unsafe.dispose();
 });
 

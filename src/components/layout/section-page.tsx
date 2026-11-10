@@ -70,7 +70,6 @@ export async function SectionPage({ title, description, area, action, children }
     : profile?.role === "front_desk"
       ? ["Overview", "Orders", "Production", "Payments", "Customers", "Job orders", "Reports"]
       : ["Production", "Job orders"];
-  if (profile?.active && profile.role!=="cutting_sewing") allowedItems.push("Time In & Out");
   if (profile?.active && ["admin", "front_desk", "cutting_sewing"].includes(profile.role)) allowedItems.push("Sewing assignments");
   if (profile?.active && profile.role !== "admin") allowedItems.push("My Salary");
   const navigation = workspaceNavigation.filter(item => item.label === "Messages" || allowedItems.includes(item.label));
