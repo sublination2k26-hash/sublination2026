@@ -92,3 +92,7 @@ input,select,textarea{max-width:100%}
   .activity-calendar .activity-help{padding:0;font-size:12px}.activity-calendar .activity-legend{padding:8px 0;gap:5px}.activity-calendar .activity-legend span{font-size:11px}.activity-calendar .activity-month{padding:10px 0}.activity-calendar .activity-grid{padding:8px 0}.activity-calendar .activity-latest{padding:4px 0 12px}.activity-calendar .activity-event-list{padding:0}.activity-calendar .activity-list-heading{padding:0}
 }
 @media(max-width:360px){.shell .metrics,.shell .lanes{grid-template-columns:minmax(0,1fr)}.shell .lane:last-child{grid-column:auto}.mobile-navigation{padding:0 12px}.activity-calendar .activity-day small{font-size:8px}}
+
+.order-payment-folders{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.order-payment-folders .filter-button{height:auto;min-height:44px;padding:10px 14px;cursor:pointer}
+.order-payment-folders .filter-button[aria-pressed="true"]{background:#2563eb;border-color:#2563eb;color:#fff}
