@@ -1,5 +1,6 @@
 "use client";
 
+import { SearchableList } from "@/components/ui/searchable-list";
 import { useRef, useState, type FormEvent } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { stockStatus, type InventoryItem } from "@/lib/inventory";
@@ -77,8 +78,8 @@ export function InventoryManager({ initialItems }: { initialItems: InventoryItem
       <label>Category<select value={category} onChange={event => setCategory(event.target.value)}><option value="">All categories</option>{Array.from(new Set(items.map(item => item.category))).sort().map(value => <option key={value}>{value}</option>)}</select></label>
       <label><span>Stock filter</span><select value={lowOnly ? "low" : "all"} onChange={event => setLowOnly(event.target.value === "low")}><option value="all">All stock</option><option value="low">Needs restocking</option></select></label>
     </div>
-    <div className="employee-table-wrap inventory-table-scroll" role="region" aria-label="Materials inventory, scroll to see more materials" tabIndex={0}><table><thead><tr><th>MATERIAL</th><th>CATEGORY</th><th>ON HAND</th><th>LOW-STOCK LEVEL</th><th>STATUS</th><th>ACTION</th></tr></thead>
+    <SearchableList className="employee-table-wrap inventory-table-scroll" role="region" aria-label="Materials inventory, scroll to see more materials" tabIndex={0}><table><thead><tr><th>MATERIAL</th><th>CATEGORY</th><th>ON HAND</th><th>LOW-STOCK LEVEL</th><th>STATUS</th><th>ACTION</th></tr></thead>
       <tbody>{shown.map(item => <tr key={item.id}><td><b>{item.name}</b></td><td>{item.category}</td><td>{Number(item.quantity).toLocaleString("en-PH")} {item.unit}</td><td>{Number(item.low_stock_level).toLocaleString("en-PH")} {item.unit}</td><td>{stockStatus(item)}</td><td><button className="secondary-button" type="button" disabled={busy} aria-label={`Edit ${item.name}`} onClick={() => { setEditing(item); setError(""); setNotice(""); }}>Edit stock</button></td></tr>)}</tbody>
-    </table>{shown.length === 0 && <p className="empty-inline">No materials match these filters. Add a material or change your search.</p>}</div>
+    </table>{shown.length === 0 && <p className="empty-inline">No materials match these filters. Add a material or change your search.</p>}</SearchableList>
   </section>;
 }

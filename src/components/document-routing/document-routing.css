@@ -124,3 +124,13 @@
   .document-routing .routing-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .document-routing .routing-actions button { min-width: 0; height: auto; white-space: normal; overflow-wrap: anywhere; }
 }
+
+/* One routing sheet keeps the document and every office together. */
+.document-routing .routing-document-dialog { width: min(960px, calc(100vw - 32px)); }
+.routing-document-dialog .employee-form-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.routing-stage-forms { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.document-routing .routing-stage-form { padding: 16px !important; border: 1px solid var(--line, #ddd) !important; border-radius: 10px; }
+.routing-stage-form legend { font-weight: 700; padding: 0 0 12px; }
+@media (max-width: 640px) {
+  .routing-stage-forms, .routing-document-dialog .employee-form-fields { grid-template-columns: minmax(0, 1fr); }
+}

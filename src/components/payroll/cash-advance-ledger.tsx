@@ -1,4 +1,5 @@
 "use client";
+import { SearchableList } from "@/components/ui/searchable-list";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -71,8 +72,8 @@ export function CashAdvanceLedger({employees,lines,run,refreshToken,onChange}:Pr
       <button className="primary-button" type="submit">Record cash advance</button>
     </div></fieldset></form>
     <label>Filter employee<select value={employee} onChange={e=>setEmployee(e.target.value)}><option value="">All employees</option>{employees.map(e=><option key={e.id} value={e.id}>{e.full_name}</option>)}</select></label>
-    <p>{run ? `Selected payroll: ${run.period_start} to ${run.period_end} (${run.status}).` : "Create or select a payroll period below to record deductions."}</p>
-    {loading?<p role="status">Loading advances…</p>:<div className="payroll-table-wrap"><table><thead><tr><th>EMPLOYEE / ADVANCE</th><th>ISSUED</th><th>REPAID</th><th>UNPAID BALANCE</th><th>RESERVED</th><th>AVAILABLE</th><th>RECOVER IN SELECTED PAYROLL</th></tr></thead><tbody>
+    <p>{run ? `Selected payroll: ${run.period_start} to ${run.period_end} (${run.status}).` : "Choose a period in Payroll runs to record deductions."}</p>
+    {loading?<p role="status">Loading advances…</p>:<SearchableList className="payroll-table-wrap"><table><thead><tr><th>EMPLOYEE / ADVANCE</th><th>ISSUED</th><th>REPAID</th><th>UNPAID BALANCE</th><th>RESERVED</th><th>AVAILABLE</th><th>RECOVER IN SELECTED PAYROLL</th></tr></thead><tbody>
       {advances.filter(a=>!employee||a.employee_id===employee).map(a=>{
         const history=recoveries.filter(r=>r.advance_id===a.id);
         const paid=history.filter(r=>r.payroll_lines.payroll_runs.status==="paid").reduce((n,r)=>n+Number(r.amount),0);
@@ -82,6 +83,6 @@ export function CashAdvanceLedger({employees,lines,run,refreshToken,onChange}:Pr
         const amount=amounts[a.id]??String(existing?.amount??0);
         return <tr key={a.id}><td><b>{employees.find(e=>e.id===a.employee_id)?.full_name??"Employee"}</b><small>{a.reference} · {a.advance_date}</small><small>{a.reason}</small><details><summary>Recovery history ({history.length})</summary>{history.map(r=><p key={r.payroll_line_id}>{r.payroll_lines.payroll_runs.period_start} – {r.payroll_lines.payroll_runs.period_end}: {peso(r.amount)} ({r.payroll_lines.payroll_runs.status})</p>)}</details></td><td>{peso(a.amount)}</td><td>{peso(paid)}</td><td>{peso(Number(a.amount)-paid)}</td><td>{peso(reserved)}</td><td>{peso(Number(a.amount)-paid-reserved)}</td><td>{run?.status==="draft"&&line?<div className="payroll-adjust"><input aria-label={`Recovery for ${a.reference}`} type="number" min="0" step="0.01" value={amount} disabled={busy} onChange={e=>setAmounts(v=>({...v,[a.id]:e.target.value}))}/><button disabled={busy} onClick={()=>void recover(a,line.id,Number(amount))}>Save recovery</button></div>:existing?peso(existing.amount):"Select an employee's draft payroll"}</td></tr>;
       })}
-    </tbody></table>{!advances.length&&<p>No cash advances recorded yet.</p>}</div>}
+    </tbody></table>{!advances.length&&<p>No cash advances recorded yet.</p>}</SearchableList>}
   </section>;
 }

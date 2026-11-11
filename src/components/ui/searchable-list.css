@@ -1,0 +1,12 @@
+.searchable-list { min-width: 0; max-width: 100%; margin: 16px 0; }
+.searchable-list-toolbar { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; padding: 0 0 12px; }
+.searchable-list-toolbar label { display: flex; flex-direction: column; gap: 6px; width: min(360px, 100%); font-size: 12px; font-weight: 600; }
+.searchable-list-toolbar input { width: 100%; min-height: 42px; padding: 10px 12px; border: 1px solid var(--line, #dbe3ee); border-radius: 8px; background: var(--bg, #f6f8fc); color: inherit; font: inherit; font-size: 14px; }
+.searchable-list-toolbar > span { flex-shrink: 0; padding-bottom: 12px; font-size: 12px; color: var(--muted, #64748b); }
+body .searchable-list .searchable-list-scroll { max-height: min(520px, 65dvh); overflow: auto; margin: 0; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.searchable-list-scroll thead th { position: sticky; top: 0; z-index: 1; background: var(--bg, #f6f8fc); box-shadow: 0 1px 0 var(--line, #dbe3ee); }
+.searchable-list-scroll [data-list-hidden] { display: none !important; }
+.searchable-list-scroll:focus-visible, .searchable-list-toolbar input:focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
+.searchable-list-empty { padding: 16px; margin: 0; color: var(--muted, #64748b); font-size: 14px; }
+@media(max-width:600px) { .searchable-list-toolbar { align-items: stretch; flex-direction: column; gap: 6px; } .searchable-list-toolbar label { width: 100%; } .searchable-list-toolbar > span { padding: 0; } }
+@media print { .searchable-list-toolbar, .searchable-list-empty { display: none; } body .searchable-list .searchable-list-scroll { max-height: none; overflow: visible; } .searchable-list-scroll [data-list-hidden] { display: revert !important; } }

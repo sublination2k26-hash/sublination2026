@@ -1,5 +1,6 @@
 "use client";
 
+import { SearchableList } from "@/components/ui/searchable-list";
 import { useRef, useState } from "react";
 import { garmentCategories } from "@/lib/garment-options";
 import { createClient } from "@/lib/supabase/client";
@@ -53,9 +54,9 @@ export function TeamMemberAdditions({itemId, sourceName, sourceGarment, sourcePr
       {extra&&<label>Additional quantity<input type="number" min="1" max="10000" step="1" required value={quantity} onChange={event=>setQuantity(event.target.value)}/></label>}
       {extra&&<label>Add-on due date<input type="date" required value={due} onChange={event=>setDue(event.target.value)}/></label>}
       {extra&&<label><input type="checkbox" checked={personalize} onChange={event=>setPersonalize(event.target.checked)}/> Include names, numbers or sizes (optional)</label>}
-      {(!extra||personalize)&&<><div className="table-wrap"><table><thead><tr><th>Name</th><th>Number</th><th>Size</th><th/></tr></thead><tbody>
+      {(!extra||personalize)&&<><SearchableList className="table-wrap"><table><thead><tr><th>Name</th><th>Number</th><th>Size</th><th/></tr></thead><tbody>
         {members.map((row,index)=><tr key={index}>{(["name","number","size"] as const).map(field=><td key={field}><input required={!extra&&field==="name"} aria-label={`New member ${index+1} ${field}`} maxLength={field==="name"?120:30} value={row[field]} onChange={event=>setMembers(values=>values.map((value,i)=>i===index?{...value,[field]:event.target.value}:value))}/></td>)}<td><button type="button" disabled={members.length===1} onClick={()=>setMembers(values=>values.filter((_,i)=>i!==index))} aria-label={`Remove new member ${index+1}`}>Remove</button></td></tr>)}
-      </tbody></table></div>
+      </tbody></table></SearchableList>
       <button type="button" disabled={members.length>=(extra?Number(quantity):availableSlots)} onClick={()=>setMembers(values=>[...values,{name:"",number:"",size:""}])}>Add another row</button></>}
       <div className="form-actions"><button type="button" className="cancel-button" onClick={()=>setOpen(false)}>Cancel</button><button className="primary-button" disabled={extra?personalize&&members.length>Number(quantity):members.length>availableSlots}>{busy?"Saving…":extra?"Add to production":"Save additional members"}</button></div>
     </fieldset>

@@ -1,5 +1,6 @@
 "use client";
 
+import { SearchableList } from "@/components/ui/searchable-list";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -51,9 +52,9 @@ export function RecurringSssSettings({ employees }: { employees: { id: string; f
       <label>Reference / note<input name="note" maxLength={1000} defaultValue={selected?.note ?? ""}/></label>
       <button type="submit" className="primary-button">{busy ? "Saving…" : "Save automatic SSS"}</button>
     </div></fieldset></form>}
-    {ready && <div className="payroll-table-wrap"><table><thead><tr><th>EMPLOYEE</th><th>SSS PER CUTOFF</th></tr></thead><tbody>{available.map(item => {
+    {ready && <SearchableList className="payroll-table-wrap"><table><thead><tr><th>EMPLOYEE</th><th>SSS PER CUTOFF</th></tr></thead><tbody>{available.map(item => {
       const setting = settings.find(value => value.employee_id === item.id);
       return <tr key={item.id}><td>{item.full_name}</td><td>{setting ? Number(setting.amount).toLocaleString("en-PH", { style: "currency", currency: "PHP" }) : "Not set — zero deduction"}</td></tr>;
-    })}</tbody></table></div>}
+    })}</tbody></table></SearchableList>}
   </section>;
 }

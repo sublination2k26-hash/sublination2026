@@ -1,7 +1,9 @@
 "use client";
 
+import { SearchableList } from "@/components/ui/searchable-list";
 import { TeamMemberAdditions } from "@/components/orders/team-member-additions";
 import { useEffect, useState } from "react";
+import "./player-list.css";
 import { createClient } from "@/lib/supabase/client";
 
 type Player = { name: string; number: string; size: string };
@@ -45,16 +47,17 @@ export function PlayerList({ orderId, editable, namesOnly = false, canAddMembers
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not save player list."); }
     finally { setBusy(false); }
   }
-  return <section className="panel">
+  return <section className="panel player-list-panel">
     <div className="panel-heading"><h2>Order items &amp; personalization</h2>{editable && loaded && item && !editing && <button className="filter-button" onClick={edit}>Edit player list</button>}</div>
     {error && <p role="alert">{error}</p>}{message && <p role="status">{message}</p>}
     {!loaded && !error && <p>Loading player lists…</p>}
-    {loaded && <label>Order item<select value={selected} disabled={editing} onChange={event => { setSelected(event.target.value); setMessage(""); }}>{items.map((value, index) => <option key={value.id} value={value.id}>{index + 1}. {value.product_name} ({value.quantity} pcs)</option>)}</select></label>}
+    {loaded && <label className="player-item-selector">Order item<select value={selected} disabled={editing} onChange={event => { setSelected(event.target.value); setMessage(""); }}>{items.map((value, index) => <option key={value.id} value={value.id}>{index + 1}. {value.product_name} ({value.quantity} pcs)</option>)}</select></label>}
     {editing ? <form onSubmit={event => { event.preventDefault(); void save(); }}>
-      <p>Front desk can correct member names. Amount, quantity, player number and size stay locked.</p>
-      <fieldset disabled={busy} className="roster-editor"><legend>Player list</legend><div className="table-wrap"><table><thead><tr><th>Name</th><th>Number</th><th>Size</th><th/></tr></thead><tbody>{rows.map((row, index) => <tr key={index}>{(["name", "number", "size"] as const).map(field => <td key={field}><input aria-label={`Player ${index + 1} ${field}`} value={row[field]} disabled={namesOnly && field !== "name"} maxLength={field === "name" ? 120 : 30} onChange={event => setRows(values => values.map((value, i) => i === index ? { ...value, [field]: event.target.value } : value))}/></td>)}<td><button type="button" disabled={namesOnly} onClick={() => setRows(values => values.filter((_, i) => i !== index))} aria-label={`Remove player ${index + 1}`}>Remove</button></td></tr>)}</tbody></table></div>
-      <button type="button" disabled={namesOnly || rows.length >= (item?.quantity ?? 0)} onClick={() => setRows(values => [...values, { name: "", number: "", size: "" }])}>Add player</button>
-      <button className="primary-button" type="submit">{busy ? "Saving…" : "Save player list"}</button><button type="button" onClick={() => setEditing(false)}>Cancel</button></fieldset>
+      <p className="player-editor-help">{namesOnly ? "You can correct player names. Numbers, sizes and player count are locked." : "Enter player names, numbers and sizes below."}</p>
+      <fieldset disabled={busy} className="roster-editor"><legend>Player list <span>{rows.length} / {item?.quantity ?? 0} players</span></legend><SearchableList className="table-wrap"><table><thead><tr><th>Name</th><th>Number</th><th>Size</th>{!namesOnly && <th><span className="player-visually-hidden">Actions</span></th>}</tr></thead><tbody>{rows.map((row, index) => <tr key={index}>{(["name", "number", "size"] as const).map(field => <td key={field} data-label={field}><input placeholder={field === "name" ? "Player name" : field === "number" ? "e.g. 07" : "e.g. M"} aria-label={`Player ${index + 1} ${field}`} value={row[field]} disabled={namesOnly && field !== "name"} maxLength={field === "name" ? 120 : 30} onChange={event => setRows(values => values.map((value, i) => i === index ? { ...value, [field]: event.target.value } : value))}/></td>)}{!namesOnly && <td className="player-remove-cell"><button className="player-remove" type="button" onClick={() => setRows(values => values.filter((_, i) => i !== index))} aria-label={`Remove player ${index + 1}`}>Remove</button></td>}</tr>)}</tbody></table></SearchableList>
+      {!rows.length && <p className="player-empty">No players added yet.</p>}
+      <div className="player-editor-actions">{!namesOnly && <button className="player-add" type="button" disabled={rows.length >= (item?.quantity ?? 0)} onClick={() => setRows(values => [...values, { name: "", number: "", size: "" }])}>+ Add player</button>}<div className="player-save-actions">
+      <button className="primary-button" type="submit">{busy ? "Saving…" : "Save player list"}</button><button className="player-cancel" type="button" onClick={() => setEditing(false)}>Cancel</button></div></div></fieldset>
     </form> : item && <div style={{ whiteSpace: "pre-wrap" }}>{item.customization?.names || "No player details encoded yet."}</div>}
     {canAddMembers&&item&&!editing&&onAdded&&orderStatus!=="cancelled"&&<TeamMemberAdditions key={item.id} itemId={item.id} sourceName={item.product_name} sourceGarment={item.customization?.garment ?? ""} sourcePrice={Number(item.unit_price)} availableSlots={["released","ready_for_release"].includes(orderStatus??"")?0:Math.max(0,item.quantity-(item.customization?.roster?.length??0))} onSaved={onAdded}/>}
   </section>;

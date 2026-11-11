@@ -1,0 +1,37 @@
+.player-list-panel { margin-top: 16px; }
+.player-list-panel .panel-heading { gap: 16px; flex-wrap: wrap; }
+.player-item-selector { display: flex; flex-direction: column; gap: 8px; max-width: 480px; margin: 20px 0; font-size: 13px; font-weight: 600; }
+.player-list-panel select, .player-list-panel input { width: 100%; min-width: 0; min-height: 44px; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; background: var(--bg, #f6f8fc); color: inherit; font: inherit; font-size: 14px; }
+.player-list-panel input:focus-visible, .player-list-panel select:focus-visible, .player-list-panel button:focus-visible { outline: 3px solid #93c5fd; outline-offset: 2px; }
+.player-list-panel input:disabled { background: var(--bg, #f1f5f9); opacity: .65; cursor: not-allowed; }
+.player-editor-help { margin: 16px 0 22px; padding: 12px 16px; border-left: 3px solid #60a5fa; border-radius: 6px; background: var(--bg, #f6f8fc); font-size: 14px; line-height: 1.6; }
+.player-list-panel .roster-editor { min-width: 0; margin: 0; padding: 16px; border: 1px solid var(--line, #e2e8f0); border-radius: 12px; }
+.player-list-panel legend { padding: 0 8px; font-size: 15px; font-weight: 700; }
+.player-list-panel legend span { margin-left: 10px; color: #64748b; font-size: 12px; font-weight: 500; }
+.player-list-panel .table-wrap { margin: 0; overflow-x: auto; }
+.player-list-panel table { width: 100%; table-layout: fixed; }
+.player-list-panel th { padding: 12px 10px; color: #64748b; font-size: 12px; text-align: left; }
+.player-list-panel th:first-child { width: 48%; }
+.player-list-panel th:last-child:not(:nth-child(3)) { width: 100px; }
+.player-list-panel td { height: auto; padding: 10px; }
+.player-list-panel button { cursor: pointer; }
+.player-list-panel .player-add, .player-list-panel .player-cancel, .player-list-panel .player-remove { min-height: 42px; padding: 9px 14px; border: 1px solid #cbd5e1; border-radius: 8px; background: transparent; color: inherit; font: inherit; font-size: 13px; font-weight: 600; }
+.player-list-panel .player-remove { color: #dc2626; border-color: #fecaca; }
+.player-list-panel button:disabled { opacity: .5; cursor: not-allowed; }
+.player-editor-actions { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line, #e2e8f0); }
+.player-save-actions { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+.player-list-panel .primary-button { min-height: 44px; height: auto; padding: 10px 18px; border-radius: 8px; }
+.player-empty { padding: 20px 10px; color: #64748b; font-size: 14px; }
+.player-visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+@media (max-width: 600px) {
+  .player-list-panel .roster-editor { padding: 12px; }
+  .player-list-panel thead { display: none; }
+  .player-list-panel table, .player-list-panel tbody { display: block; min-width: 0; }
+  .player-list-panel tr { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--line, #e2e8f0); }
+  .player-list-panel td { display: block; padding: 0; border: 0; }
+  .player-list-panel td:first-child { grid-column: 1 / -1; }
+  .player-list-panel td[data-label]::before { content: attr(data-label); display: block; margin-bottom: 6px; font-size: 12px; font-weight: 600; text-transform: capitalize; }
+  .player-remove-cell { grid-column: 1 / -1; justify-self: end; }
+  .player-save-actions { width: 100%; margin: 0; }
+  .player-save-actions button { flex: 1; }
+}

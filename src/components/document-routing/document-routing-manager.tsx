@@ -1,7 +1,8 @@
 "use client";
 
+import { SearchableList } from "@/components/ui/searchable-list";
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
-import { ArrowRightLeft, FilePenLine, Plus, Printer } from "lucide-react";
+import { FilePenLine, Plus, Printer } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { printRoutingDocument } from "@/lib/document-routing-print";
 import { documentColumns, latestStage, latestStageUpdatedAt, pendingRoutingStages, routingStages, type RoutingDocument, type RoutingEntry } from "@/lib/document-routing";
@@ -25,17 +26,6 @@ export function DocumentRoutingManager({ initialDocuments }: { initialDocuments:
   const [formOpen, setFormOpen] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();
-  const [officeOpen, setOfficeOpen] = useState(false);
-  const officeDialog = useRef<HTMLDialogElement>(null);
-  const officeTitleId = useId();
-  useEffect(() => {
-    const element = officeDialog.current;
-    if (!officeOpen || !element) return;
-    const previousOverflow = window.document.body.style.overflow;
-    window.document.body.style.overflow = "hidden";
-    element.showModal();
-    return () => { element.close(); window.document.body.style.overflow = previousOverflow; };
-  }, [officeOpen]);
   useEffect(() => {
     const element = dialog.current;
     if (!formOpen || !element) return;
@@ -83,7 +73,7 @@ export function DocumentRoutingManager({ initialDocuments }: { initialDocuments:
         }).select().single();
         if (cause) throw cause;
         setDocuments(current => current.map(item => item.id === document.id ? { ...item, document_routing_entries: [...item.document_routing_entries, entry as RoutingEntry] } : item));
-        form.reset(); setOfficeOpen(false); setNotice("Routing entry added.");
+        setNotice("Routing stage saved.");
       } else {
         const values = {
           pr_number: value("pr_number"), po_number: value("po_number"), title: value("title"), payee: value("payee"),
@@ -106,7 +96,7 @@ export function DocumentRoutingManager({ initialDocuments }: { initialDocuments:
         const saved = result.data as RoutingDocument;
         setDocuments(current => document ? current.map(item => item.id === saved.id ? saved : item) : [saved, ...current]);
         setSelected(saved.id); setFormKey(key => key + 1); setNotice("Document saved.");
-        setFormOpen(false);
+        setFormOpen(true);
       }
     } catch (cause) { setError(message(cause)); }
     finally { saving.current = false; setBusy(false); }
@@ -114,19 +104,20 @@ export function DocumentRoutingManager({ initialDocuments }: { initialDocuments:
   const shown = documents.filter(item => (paymentFilter === "all" || (paymentFilter === "paid" ? Boolean(item.released_date) : !item.released_date)) && (!stageFilter || latestStage(item) === stageFilter) && `${item.pr_number} ${item.po_number} ${item.title} ${item.payee}`.toLowerCase().includes(query.toLowerCase()));
   return <section className="employee-manager document-routing">
     <div className="employee-manager-heading"><div><h2>Document register</h2><p>{documents.length} documents · {documents.filter(item => item.released_date).length} payments released</p></div><button className="primary-button routing-new-document" disabled={busy} onClick={() => choose(null)}><Plus size={17} aria-hidden="true"/>New document</button></div>
-    {error && !formOpen && !officeOpen && <p className="employee-error" role="alert">{error}</p>}
+    {error && !formOpen && <p className="employee-error" role="alert">{error}</p>}
     {notice && <p className="employee-notice" role="status">{notice}</p>}
     <div className="employee-form-fields">
       <label>Payment status<select value={paymentFilter} onChange={event => setPaymentFilter(event.target.value)}><option value="pending">Pending / Hindi pa bayad</option><option value="paid">Paid / Released records</option><option value="all">All documents</option></select></label>
       <label>Search documents<input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="PR, PO, description or payee"/></label>
       <label>Current office<select value={stageFilter} onChange={event => setStageFilter(event.target.value)}><option value="">All stages</option>{routingStages.map(stage => <option key={stage}>{stage}</option>)}</select></label>
     </div>
-    <div className="employee-table-wrap routing-table" role="region" aria-label="Document register" tabIndex={0}><table><thead><tr><th>PR / PO</th><th>DESCRIPTION / PAYEE</th><th>REQUEST DATE</th><th>AMOUNT</th><th>CURRENT STAGE</th><th>STAGE UPDATED (PH)</th><th>PAYMENT</th><th>ACTION</th></tr></thead><tbody>
-      {shown.map(item => <tr key={item.id}><td><b>{item.pr_number}</b><br/>{item.po_number || "—"}</td><td>{item.title}<br/>{item.payee}</td><td>{item.request_date}</td><td>{money(item.amount)}</td><td>{latestStage(item)}</td><td>{latestStageUpdatedAt(item) ? <time dateTime={latestStageUpdatedAt(item)!}>{new Date(latestStageUpdatedAt(item)!).toLocaleString("en-PH", { timeZone: "Asia/Manila" })}</time> : "—"}</td><td>{item.released_date ? `Released ${item.released_date}` : "Pending"}</td><td><div className="routing-actions"><button type="button" className="secondary-button" disabled={busy} onClick={() => { setSelected(item.id); setError(""); setNotice(""); setOfficeOpen(true); }} aria-label={`Update stage for ${item.pr_number}`}><ArrowRightLeft size={16} aria-hidden="true"/>Update stage</button><button className="secondary-button" disabled={busy} onClick={() => choose(item.id)} aria-label={`Open ${item.pr_number}`}><FilePenLine size={16} aria-hidden="true"/>Open</button><button type="button" className="secondary-button" disabled={busy} onClick={() => print(item)} aria-label={`Print ${item.pr_number}`}><Printer size={16} aria-hidden="true"/>Print</button><button type="button" className="secondary-button" disabled={busy} onClick={() => void remove(item)} aria-label={`Delete ${item.pr_number}`}>Delete</button></div></td></tr>)}
-    </tbody></table>{shown.length === 0 && <p className="empty-inline">No documents match. Select New document or adjust the filters.</p>}</div>
+    <SearchableList className="employee-table-wrap routing-table" role="region" aria-label="Document register" tabIndex={0}><table><thead><tr><th>PR / PO</th><th>DESCRIPTION / PAYEE</th><th>REQUEST DATE</th><th>AMOUNT</th><th>CURRENT STAGE</th><th>STAGE UPDATED (PH)</th><th>PAYMENT</th><th>ACTION</th></tr></thead><tbody>
+      {shown.map(item => <tr key={item.id}><td><b>{item.pr_number}</b><br/>{item.po_number || "—"}</td><td>{item.title}<br/>{item.payee}</td><td>{item.request_date}</td><td>{money(item.amount)}</td><td>{latestStage(item)}</td><td>{latestStageUpdatedAt(item) ? <time dateTime={latestStageUpdatedAt(item)!}>{new Date(latestStageUpdatedAt(item)!).toLocaleString("en-PH", { timeZone: "Asia/Manila" })}</time> : "—"}</td><td>{item.released_date ? `Released ${item.released_date}` : "Pending"}</td><td><div className="routing-actions"><button className="secondary-button" disabled={busy} onClick={() => choose(item.id)} aria-label={`Open ${item.pr_number}`}><FilePenLine size={16} aria-hidden="true"/>Open</button><button type="button" className="secondary-button" disabled={busy} onClick={() => print(item)} aria-label={`Print ${item.pr_number}`}><Printer size={16} aria-hidden="true"/>Print</button><button type="button" className="secondary-button" disabled={busy} onClick={() => void remove(item)} aria-label={`Delete ${item.pr_number}`}>Delete</button></div></td></tr>)}
+    </tbody></table>{shown.length === 0 && <p className="empty-inline">No documents match. Select New document or adjust the filters.</p>}</SearchableList>
     <dialog ref={dialog} className="routing-document-dialog" aria-labelledby={titleId} onCancel={event => { if (saving.current) event.preventDefault(); else setFormOpen(false); }} onClose={() => setFormOpen(false)}>
-    <div className="routing-dialog-heading"><h2 id={titleId}>{document ? `Edit ${document.pr_number}` : "New document"}</h2><button type="button" className="secondary-button" disabled={busy} onClick={() => setFormOpen(false)} aria-label="Close document form">Close</button></div>
+    <div className="routing-dialog-heading"><h2 id={titleId}>{document ? `Routing sheet ? ${document.pr_number}` : "New document"}</h2><button type="button" className="secondary-button" disabled={busy} onClick={() => setFormOpen(false)} aria-label="Close document form">Close</button></div>
     {error && formOpen && <p className="employee-error" role="alert">{error}</p>}
+    {notice && formOpen && <p className="employee-notice" role="status">{notice}</p>}
     <form className="employee-form" key={`${selected}-${formKey}`} onSubmit={event => save(event)}>
       <fieldset disabled={busy}><div className="employee-form-fields">
         <label>P.R. number *<input name="pr_number" required maxLength={100} defaultValue={document?.pr_number}/></label>
@@ -144,23 +135,33 @@ export function DocumentRoutingManager({ initialDocuments }: { initialDocuments:
         <label>Released to / signature reference<input name="released_to" maxLength={200} defaultValue={document?.released_to}/></label>
       </div></fieldset>{document && <p>Saved net payment: <b>{money(document.net_amount)}</b></p>}<button className="primary-button" type="submit">{busy ? "Saving…" : "Save document"}</button></fieldset>
     </form>
-    </dialog>
+    <h3>Routing stages and dates</h3>
+    <p>One routing sheet for this PR. Save the document details first, then record each office below. Leave future stages blank.</p>
+    {!document && <ol className="routing-stages">{routingStages.map(stage => <li key={stage}>{stage} ? Pending</li>)}</ol>}
     {document && <>
       <h3>Routing history · {document.pr_number}</h3><p>Entries follow the order they were recorded. Add another entry to record a return or correction; earlier entries are preserved.</p>
-      <ol className="routing-stages" aria-label="Routing stages">{routingStages.map(stage => <li key={stage} className={entries.some(entry => entry.stage === stage) ? "visited" : ""}>{stage}</li>)}</ol>
-      <div className="employee-table-wrap routing-table"><table><thead><tr><th>OFFICE</th><th>RECEIVED</th><th>FORWARDED</th><th>HANDLED BY</th><th>REMARKS</th><th>RECORDED</th></tr></thead><tbody>{entries.map(entry => <tr key={entry.id}><td>{entry.stage}</td><td>{entry.received_date}</td><td>{entry.forwarded_date ?? "—"}</td><td>{entry.handled_by || "—"}</td><td className="routing-remarks">{entry.remarks || "—"}</td><td>{new Date(entry.created_at).toLocaleString("en-PH", { timeZone: "Asia/Manila" })}</td></tr>)}</tbody></table>{!entries.length && <p className="empty-inline">No office updates yet.</p>}</div>
-      <button type="button" className="primary-button" disabled={busy} onClick={() => { setError(""); setOfficeOpen(true); }}>Add office update</button>
-      <dialog ref={officeDialog} className="routing-document-dialog" aria-labelledby={officeTitleId} onCancel={event => { if (saving.current) event.preventDefault(); else setOfficeOpen(false); }} onClose={() => setOfficeOpen(false)}>
-      <div className="routing-dialog-heading"><h2 id={officeTitleId}>Add office update ? {document.pr_number}</h2><button type="button" className="secondary-button" disabled={busy} onClick={() => setOfficeOpen(false)}>Close</button></div>
-      {error && officeOpen && <p className="employee-error" role="alert">{error}</p>}
-      <form className="employee-form" key={`${document.id}-${officeOpen}`} onSubmit={event => save(event, true)}><fieldset disabled={busy}><div className="employee-form-fields">
-        <label>Office / stage<select name="stage" defaultValue={latestStage(document)}>{routingStages.map(stage => <option key={stage} disabled={stage === "CHEQUE RELEASE" && !canRelease}>{stage}</option>)}</select></label>
-        <label>Date received *<input name="received_date" type="date" required defaultValue={today()}/></label>
-        <label>Date forwarded<input name="forwarded_date" type="date"/></label>
-        <label>Handled by / initials<input name="handled_by" maxLength={200}/></label>
-        <label>Remarks / control number<textarea name="remarks" maxLength={2000} rows={3}/></label>
-      </div><button className="primary-button" type="submit">{busy ? "Saving…" : "Add routing entry"}</button></fieldset></form>
-      </dialog>
+      <div className="routing-stage-forms">{routingStages.map(stage => {
+        const latest = [...entries].reverse().find(entry => entry.stage === stage);
+        const locked = stage === "CHEQUE RELEASE" && !canRelease;
+        return <form className="employee-form routing-stage-form" key={`${document.id}-${stage}-${latest?.id ?? "pending"}`} onSubmit={event => save(event, true)}>
+          <fieldset disabled={busy || locked}>
+            <legend>{stage} ? {latest?.forwarded_date ? "Forwarded" : latest ? "Received" : "Pending"}</legend>
+            <input type="hidden" name="stage" value={stage}/>
+            <div className="employee-form-fields">
+              <label>Date received *<input name="received_date" type="date" required defaultValue={latest?.received_date ?? ""}/></label>
+              <label>Date forwarded<input name="forwarded_date" type="date" defaultValue={latest?.forwarded_date ?? ""}/></label>
+              <label>Handled by / initials<input name="handled_by" maxLength={200} defaultValue={latest?.handled_by ?? ""}/></label>
+              <label>Remarks / control number<textarea name="remarks" maxLength={2000} rows={2} defaultValue={latest?.remarks ?? ""}/></label>
+            </div>
+            <button className="primary-button" type="submit">{busy ? "Saving?" : `Save ${stage} dates`}</button>
+          </fieldset>
+          {locked && <p>Complete the forwarded dates of all preceding stages first.</p>}
+        </form>;
+      })}</div>
+      <details><summary>Previous routing updates</summary>
+      <SearchableList className="employee-table-wrap routing-table"><table><thead><tr><th>OFFICE</th><th>RECEIVED</th><th>FORWARDED</th><th>HANDLED BY</th><th>REMARKS</th><th>RECORDED</th></tr></thead><tbody>{entries.map(entry => <tr key={entry.id}><td>{entry.stage}</td><td>{entry.received_date}</td><td>{entry.forwarded_date ?? "—"}</td><td>{entry.handled_by || "—"}</td><td className="routing-remarks">{entry.remarks || "—"}</td><td>{new Date(entry.created_at).toLocaleString("en-PH", { timeZone: "Asia/Manila" })}</td></tr>)}</tbody></table>{!entries.length && <p className="empty-inline">No office updates yet.</p>}</SearchableList>
+      </details>
     </>}
+    </dialog>
   </section>;
 }

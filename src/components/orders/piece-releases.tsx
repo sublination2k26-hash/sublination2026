@@ -1,5 +1,6 @@
 "use client";
 
+import { SearchableList } from "@/components/ui/searchable-list";
 import { useEffect, useRef, useState } from "react";
 import { manilaToday } from "@/lib/payment-tracking";
 import { createClient } from "@/lib/supabase/client";
@@ -75,7 +76,7 @@ export function PieceReleases({ orderId, quantity, status, canRelease, isAdmin, 
       <p className="workflow-hint">QC approval and cumulative payment covering the released share of the order total are required. Uncollected pieces stay here until a later pickup. Enter only new money collected now; earlier payments already count. An admin may record an exception for this pickup.</p>
       <button className="primary-button" disabled={saving} type="submit">{saving ? "Saving…" : releaseAll ? `Release all ${remaining} pieces` : "Release pieces"}</button>
     </form>}
-    {ready && releases.length > 0 && <div className="table-wrap"><table><thead><tr><th>RELEASE DATE</th><th>RECORDED AT</th><th>PIECES</th><th>RECEIVED BY</th><th>NOTES</th></tr></thead><tbody>{releases.map(release => <tr key={release.id}><td>{release.release_on}</td><td>{new Date(release.released_at).toLocaleString("en-PH", { timeZone: "Asia/Manila" })}</td><td>{release.quantity}</td><td>{release.received_by}</td><td>{release.notes}{release.pickup_payment_id && <p>Payment recorded in payment history.</p>}{release.exception_reason && <p>Admin exception: {release.exception_reason}</p>}</td></tr>)}</tbody></table></div>}
+    {ready && releases.length > 0 && <SearchableList className="table-wrap"><table><thead><tr><th>RELEASE DATE</th><th>RECORDED AT</th><th>PIECES</th><th>RECEIVED BY</th><th>NOTES</th></tr></thead><tbody>{releases.map(release => <tr key={release.id}><td>{release.release_on}</td><td>{new Date(release.released_at).toLocaleString("en-PH", { timeZone: "Asia/Manila" })}</td><td>{release.quantity}</td><td>{release.received_by}</td><td>{release.notes}{release.pickup_payment_id && <p>Payment recorded in payment history.</p>}{release.exception_reason && <p>Admin exception: {release.exception_reason}</p>}</td></tr>)}</tbody></table></SearchableList>}
     {ready && status === "released" && releases.length === 0 && <p className="empty-inline">Previously released in full. No per-pickup records were recorded.</p>}
   </section>;
 }

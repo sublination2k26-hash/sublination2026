@@ -1,5 +1,6 @@
 "use client";
 
+import { SearchableList } from "@/components/ui/searchable-list";
 import { useEffect, useId, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { buildCalendarEvents, manilaDate, type ActivityAudit, type CalendarEvent } from "@/lib/activity-calendar";
@@ -85,7 +86,7 @@ export function ActivityCalendar({ orderId, refreshToken }: { orderId: string; r
       })}
     </div>
     <div className="activity-list-heading"><h3>{day||"All activity this month"}</h3>{day&&<button type="button" className="text-button" onClick={()=>setDay("")}>Show month</button>}</div>
-    <ol className="activity-event-list">{visible.map(event=><li key={event.id} className={`activity-event activity-${event.color}`}><time dateTime={event.at}>{new Date(event.at).toLocaleString("en-PH",{timeZone:"Asia/Manila",month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",second:"2-digit"})}</time><b>{event.title}</b><span>Action by: {event.actor}</span>{event.detail&&<p>{event.detail}</p>}</li>)}</ol>
+    <SearchableList recordSelector=":scope > ul > li"><ul className="activity-event-list">{visible.map(event=><li key={event.id} className={`activity-event activity-${event.color}`}><time dateTime={event.at}>{new Date(event.at).toLocaleString("en-PH",{timeZone:"Asia/Manila",month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",second:"2-digit"})}</time><b>{event.title}</b><span>Action by: {event.actor}</span>{event.detail&&<p>{event.detail}</p>}</li>)}</ul></SearchableList>
     {!visible.length&&<p className="empty-inline">No recorded activity for {day?"this date":"this month"}.</p>}
     {!!events.length&&!monthEvents.length&&<button type="button" className="text-button" onClick={()=>{setMonth(events[events.length-1].date.slice(0,7));setDay("");}}>Go to latest activity</button>}
     <p className="activity-help">History shows saved audit records. Missing older actions cannot be reconstructed reliably.</p>

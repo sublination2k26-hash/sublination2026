@@ -1,2 +1,13 @@
 .payslips .primary-button{background:#12a447;color:white}.payslip-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.payslip-fields{border:0;padding:0;margin:0;min-width:0}.payslip-fields h3{margin:24px 0 16px;font-size:15px}.payslip-net{color:#099d43;font-weight:700}.payslip-deductions{color:#df2525}.payslip-footer{display:flex;justify-content:flex-end;gap:12px;padding:20px;border-top:1px solid #e1e5eb;background:#f7f8fa}.payslip-pdf{display:inline-flex;align-items:center;gap:8px;background:#2563eb;color:white;border:0;border-radius:7px;padding:10px 16px;cursor:pointer}@media(max-width:540px){.payslip-grid{grid-template-columns:1fr}.payslips .payroll-section-heading{align-items:flex-start;gap:14px;flex-direction:column}}
 .attendance-dialog:has(.payslip-fields){--att-border:#e0e4ec;width:min(820px,calc(100vw - 32px))}.payslip-fields input,.payslip-fields select{border:1px solid #dce1e9;border-radius:8px;padding:12px;background:var(--surface,#fff);color:inherit;box-sizing:border-box;min-width:0}.payslip-fields input[readonly]{background:#f4faf6}.payslip-fields .payslip-net{color:#099d43}.payslip-footer{position:sticky;bottom:0}.payslip-fields strong{display:block;font-size:24px}.payslip-fields label{color:#667085}
+.payroll-legacy { margin-top: 24px; }
+.payroll-legacy > summary { cursor: pointer; padding: 16px; border: 1px solid var(--line); border-radius: 10px; font-weight: 600; }
+.payroll-legacy[open] > summary { margin-bottom: 20px; }
+.payslip-fields label { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.payslip-optional { margin-top: 16px; border: 1px solid var(--line, #e2e8f0); border-radius: 10px; padding: 14px; }
+.payslip-optional summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+.payslip-optional summary span { float: right; color: var(--ink); }
+.payslip-optional[open] .payslip-grid { margin-top: 16px; }
+.payslip-save-help { font-size: 12px; line-height: 1.7; color: var(--muted); margin-top: 20px; }
+.attendance-dialog:has(.payslip-fields) { max-height: 90dvh; overflow-y: auto; }
+.payslip-fields > .payslip-net:last-child { padding: 16px; border-radius: 10px; background: var(--bg); }

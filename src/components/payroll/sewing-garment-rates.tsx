@@ -1,5 +1,6 @@
 "use client";
 
+import { SearchableList } from "@/components/ui/searchable-list";
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { garmentCategories } from "@/lib/garment-options";
@@ -62,7 +63,7 @@ export function SewingGarmentRates({ employeeId, employeeName, salaryBasis }: { 
       </form>
       {loading ? <p role="status">Loading garment prices...</p> : <p>{savedRate ? `Saved ${garment} price: PHP ${Number(savedRate.unit_rate).toFixed(2)} per piece.` : `No separate ${garment} price saved. The employee's default output rate applies.`}</p>}
       {message && <p role="status">{message}</p>}{error && <p role="alert">{error}</p>}
-      {rates.length > 0 && <div className="payroll-table-wrap"><table><thead><tr><th>GARMENT</th><th>PRICE PER PIECE</th><th></th></tr></thead><tbody>{rates.map(rate => <tr key={rate.garment}><td>{rate.garment}</td><td>PHP {Number(rate.unit_rate).toFixed(2)}</td><td><button type="button" className="payroll-link" disabled={busy || loading} onClick={() => choose(rate.garment)}>Edit {rate.garment} price</button></td></tr>)}</tbody></table></div>}
+      {rates.length > 0 && <SearchableList className="payroll-table-wrap"><table><thead><tr><th>GARMENT</th><th>PRICE PER PIECE</th><th></th></tr></thead><tbody>{rates.map(rate => <tr key={rate.garment}><td>{rate.garment}</td><td>PHP {Number(rate.unit_rate).toFixed(2)}</td><td><button type="button" className="payroll-link" disabled={busy || loading} onClick={() => choose(rate.garment)}>Edit {rate.garment} price</button></td></tr>)}</tbody></table></SearchableList>}
       <p>Garments without a separate price use the default output rate. New prices apply to future completions.</p>
     </>}
   </div>;

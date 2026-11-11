@@ -1,5 +1,6 @@
 "use client";
 
+import { SearchableList } from "@/components/ui/searchable-list";
 import { PasswordField } from "@/components/ui/password-field";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
@@ -75,9 +76,9 @@ export function EmployeeManager() {
       <p className="employee-form-note">No invitation email is sent. The employee can sign in with this email and password.</p>
       <div className="form-actions"><button type="button" className="cancel-button" onClick={resetForm}>Cancel</button><button className="primary-button" type="submit" disabled={saving}>{saving && <LoaderCircle className="spin" size={14}/>}<Check size={14}/>{editing ? "Save changes" : "Create account"}</button></div>
     </form>}
-    <div className="employee-table-wrap"><table><thead><tr><th>EMPLOYEE</th><th>EMAIL / LOGIN ID</th><th>ROLE</th><th>STATUS</th><th>ACTIONS</th></tr></thead><tbody>
+    <SearchableList className="employee-table-wrap"><table><thead><tr><th>EMPLOYEE</th><th>EMAIL / LOGIN ID</th><th>ROLE</th><th>STATUS</th><th>ACTIONS</th></tr></thead><tbody>
       {employees.map(employee => <tr key={employee.id}><td><b>{employee.name}</b></td><td>{employee.loginId}</td><td>{roleOptions.find(item => item.id === employee.role)?.label}</td><td><span className={`employee-status ${employee.active ? "is-active" : "is-inactive"}`}>{employee.active ? "Active" : "Inactive"}</span></td><td><div className="employee-actions"><button title="Edit employee" onClick={() => edit(employee)}><Pencil size={14}/> Edit</button><button title={employee.active ? "Deactivate employee" : "Activate employee"} onClick={() => void changeActive(employee)}>{employee.active ? <ShieldCheck size={14}/> : <Check size={14}/>}</button><button disabled={saving} onClick={() => void remove(employee)}>Delete</button></div></td></tr>)}
-    </tbody></table>{loading ? <div className="employee-empty"><LoaderCircle className="spin" size={22}/><span>Loading employee accounts…</span></div> : employees.length === 0 && <div className="employee-empty"><UserRoundPlus size={22}/><b>No employee accounts yet</b><span>Invite staff and assign one of the system roles.</span></div>}</div>
+    </tbody></table>{loading ? <div className="employee-empty"><LoaderCircle className="spin" size={22}/><span>Loading employee accounts…</span></div> : employees.length === 0 && <div className="employee-empty"><UserRoundPlus size={22}/><b>No employee accounts yet</b><span>Invite staff and assign one of the system roles.</span></div>}</SearchableList>
     <div className="employee-manager-foot">{employees.length} employee{employees.length === 1 ? "" : "s"} · Stored in Supabase · Admin can assign all seven roles</div>
   </section>;
 }

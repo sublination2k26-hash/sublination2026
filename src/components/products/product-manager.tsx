@@ -1,5 +1,6 @@
 "use client";
 
+import { SearchableList } from "@/components/ui/searchable-list";
 import { FormEvent, useRef, useState } from "react";
 import { Check, Package, Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -154,7 +155,7 @@ export function ProductManager({ initialProducts }: { initialProducts: Product[]
     </form>
 
     <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, fontSize: 13 }}><input type="checkbox" checked={showRemoved} onChange={event => setShowRemoved(event.target.checked)}/> Show removed products</label>
-    <div className="employee-table-wrap products-table-scroll" role="region" aria-label="Product catalog, scroll to see more products" tabIndex={0}>
+    <SearchableList className="employee-table-wrap products-table-scroll" role="region" aria-label="Product catalog, scroll to see more products" tabIndex={0}>
       <table>
         <thead><tr><th>PRODUCT</th><th>CATEGORY</th><th>TYPE</th><th>BASE PRICE</th><th>STATUS</th><th>ACTION</th></tr></thead>
         <tbody>{visibleProducts.map(product => <tr key={product.id}>
@@ -167,6 +168,6 @@ export function ProductManager({ initialProducts }: { initialProducts: Product[]
         </tr>)}</tbody>
       </table>
       {visibleProducts.length === 0 && <p className="empty-inline"><Package size={16}/> No {showRemoved ? "" : "active "}products. Add a product above{!showRemoved && " or show removed products to restore one"}.</p>}
-    </div>
+    </SearchableList>
   </section>;
 }
