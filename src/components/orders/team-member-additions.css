@@ -1,0 +1,30 @@
+.team-addon-form { margin-top: 20px; min-width: 0; }
+.team-addon-form h3 { margin: 0 0 8px; font-size: 18px; }
+.team-addon-form .roster-editor { min-width: 0; margin: 0; padding: 18px; border: 1px solid var(--line); border-radius: 12px; }
+.team-addon-form legend { padding: 0 8px; font-size: 14px; font-weight: 600; }
+.team-addon-form p { font-size: 14px; line-height: 1.6; }
+.team-addon-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.team-addon-form .team-addon-full, .team-addon-total { grid-column: 1 / -1; }
+.team-addon-form label { min-width: 0; }
+.team-addon-form input:not([type="checkbox"]), .team-addon-form select { width: 100%; min-width: 0; min-height: 44px; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; background: var(--bg); color: inherit; font: inherit; font-size: 16px; }
+.team-addon-form input[type="date"] { display: block; -webkit-appearance: none; appearance: none; text-align: left; }
+.team-addon-form input[type="date"]::-webkit-date-and-time-value { text-align: left; min-height: 1.3em; }
+.team-addon-form .team-addon-checkbox { display: flex; flex-direction: row; align-items: center; gap: 10px; min-height: 44px; margin: 16px 0; cursor: pointer; }
+.team-addon-form .team-addon-checkbox input { width: 20px; height: 20px; min-height: 20px; flex: 0 0 20px; margin: 0; padding: 0; accent-color: #2563eb; }
+.team-addon-total { padding: 12px; border-radius: 8px; background: var(--bg); margin: 0; }
+.team-addon-form .form-actions button { min-height: 44px; height: auto; padding: 12px 16px; }
+.team-addon-form :is(input,select,button):focus-visible { outline: 2px solid #60a5fa; outline-offset: 2px; }
+@media(max-width:600px) {
+ .team-addon-fields { grid-template-columns: minmax(0,1fr); gap: 14px; }
+ .team-addon-form .roster-editor { padding: 12px; }
+ .team-addon-form .form-actions { flex-direction: column-reverse; align-items: stretch; gap: 10px; }
+ .team-addon-form .form-actions button { width: 100%; justify-content: center; }
+ .team-addon-form .team-addon-checkbox { font-size: 13px; line-height: 1.5; }
+ .team-addon-form table { min-width: 0; table-layout: fixed; }
+ .team-addon-form thead { display: none; }
+ .team-addon-form tbody { display: block; }
+ .team-addon-form tr { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+ .team-addon-form td { display: block; padding: 0; height: auto; }
+ .team-addon-form td:first-child, .team-addon-form td:last-child { grid-column: 1 / -1; }
+ .team-addon-form td[data-label]::before { content: attr(data-label); display: block; margin-bottom: 6px; text-transform: capitalize; font-size: 12px; }
+}

@@ -1,0 +1,22 @@
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const {PGlite}=require('@electric-sql/pglite');
+test('permanent login deletion preserves historical identity and removes access',async t=>{
+ const db=new PGlite();t.after(()=>db.close());
+ await db.exec(`create role anon; create role authenticated; create schema auth; create schema private;
+ create table auth.users(id uuid primary key,email text);
+ create table public.profiles(id uuid primary key references auth.users(id) on delete cascade,full_name text,active boolean default true,updated_at timestamptz default now());
+ create table public.saved_payroll(employee_id uuid references public.profiles(id),amount numeric);
+ insert into auth.users values('00000000-0000-0000-0000-000000000001','staff@example.com');
+ insert into profiles(id,full_name) values('00000000-0000-0000-0000-000000000001','Staff');
+ insert into saved_payroll values('00000000-0000-0000-0000-000000000001',6000);`);
+ await db.exec(fs.readFileSync('supabase/migrations/20261111015720_permanent_employee_account_deletion.sql','utf8'));
+ await db.exec('delete from auth.users');
+ assert.equal((await db.query('select * from auth.users')).rows.length,0);
+ const archived=(await db.query('select * from profiles')).rows[0];
+ assert.equal(archived.active,false);assert.ok(archived.auth_deleted_at);
+ assert.equal((await db.query('select p.full_name,s.amount from saved_payroll s join profiles p on p.id=s.employee_id')).rows[0].full_name,'Staff');
+ assert.equal((await db.query('select amount from saved_payroll')).rows[0].amount,'6000');
+ await db.exec("insert into auth.users values('00000000-0000-0000-0000-000000000002','staff@example.com')");
+});

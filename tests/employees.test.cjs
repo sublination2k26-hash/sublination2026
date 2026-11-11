@@ -84,13 +84,12 @@ test('valid employee changes succeed and refresh the employee page', async () =>
   assert.equal(fixture.revalidations(), 1);
 });
 
-test('linked employee deletion deactivates access while preserving history', async () => {
+test('blocked deletion returns an error without silently deactivating', async () => {
   const fixture = loadActions(undefined, { message: 'Database error deleting user' });
   const result = await fixture.actions.deleteEmployee('employee');
-  assert.equal(result.ok, true);
-  assert.equal(result.deactivated, true);
-  assert.equal(fixture.updates(), 1);
-  assert.equal(fixture.revalidations(), 1);
+  assert.match(result.error, /Could not permanently delete/);
+  assert.equal(fixture.updates(), 0);
+  assert.equal(fixture.revalidations(), 0);
 });
 
 test('employee without linked history is deleted without deactivating', async () => {
@@ -103,7 +102,7 @@ test('employee without linked history is deleted without deactivating', async ()
 
 test('failed deactivation does not report successful removal', async () => {
   const fixture = loadActions({ data: null, error: null }, { message: 'Database error deleting user' });
-  assert.match((await fixture.actions.deleteEmployee('employee')).error, /could not be deactivated/);
+  assert.match((await fixture.actions.deleteEmployee('employee')).error, /Could not permanently delete/);
   assert.equal(fixture.revalidations(), 0);
 });
 

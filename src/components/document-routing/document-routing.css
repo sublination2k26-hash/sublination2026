@@ -134,3 +134,14 @@
 @media (max-width: 640px) {
   .routing-stage-forms, .routing-document-dialog .employee-form-fields { grid-template-columns: minmax(0, 1fr); }
 }
+.document-routing button.routing-pr-link { border: 0; background: transparent; color: #2563eb; box-shadow: none; text-decoration: underline; text-underline-offset: 3px; padding: 4px 0; min-height: 44px; font-weight: 700; }
+.routing-history-summary > p { font-size: 14px; line-height: 1.6; }
+.routing-stage-summary td small { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; }
+.routing-edit-details { margin-top: 20px; border-top: 1px solid var(--line); padding-top: 16px; }
+.routing-edit-details > summary { padding: 10px 0; font-weight: 600; cursor: pointer; }
+@media(max-width:640px) {
+ .routing-stage-summary td:nth-child(1)::before { content: "Stage"; }
+ .routing-stage-summary td:nth-child(2)::before { content: "Received"; }
+ .routing-stage-summary td:nth-child(3)::before { content: "Forwarded"; }
+ .routing-stage-summary td:nth-child(4)::before { content: "Last updated (PH)"; }
+}

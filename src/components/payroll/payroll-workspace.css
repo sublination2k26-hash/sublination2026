@@ -26,3 +26,5 @@ body .payroll-workspace .searchable-list .searchable-list-scroll { display: bloc
 .payroll-workspace .payroll-lines-heading { flex-direction: column; }
 @media(max-width:600px) { .payroll-view-nav { display: grid; grid-template-columns: 1fr 1fr; } .payroll-view-nav button { text-align: left; padding: 10px; } .payroll-workspace .payroll-section { padding: 14px; } body .payroll-workspace .searchable-list .searchable-list-scroll { max-height: 320px; } }
 @media print { .payroll-view-nav, .payroll-view-help { display: none; } body .payroll-workspace .searchable-list .searchable-list-scroll { max-height: none; overflow: visible; } }
+.payroll-team-name { display: block; width: fit-content; max-width: 100%; padding: 5px 9px; margin-bottom: 5px; border-radius: 6px; background: #e8efff; color: #1d4ed8; font-size: 14px; font-weight: 700; white-space: normal; overflow-wrap: anywhere; }
+html[data-theme="dark"] .payroll-team-name { background: #253c60; color: #bfdbfe; }

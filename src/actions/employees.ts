@@ -8,25 +8,14 @@ import { authEmailToEmployeeLogin } from "@/lib/auth/employee-login";
 import { APP_ROLES, type AppRole } from "@/lib/auth/permissions";
 
 export type EmployeeAccount = { id: string; name: string; loginId: string; role: AppRole; active: boolean };
-type Result = { ok: true; deactivated?: boolean } | { error: string };
+type Result = { ok: true } | { error: string };
 
 export async function deleteEmployee(id: string): Promise<Result> {
   try {
-    const { supabase, user } = await requireAdmin();
+    const { user } = await requireAdmin();
     if (id === user.id) return { error: "You cannot delete the admin account currently in use." };
     const { error } = await serviceClient().auth.admin.deleteUser(id);
-    if (error) {
-      // Linked historical records can prevent deleting the Auth user/profile.
-      // Remove access without deleting those records; do not mask other failures.
-      if (!/database error deleting user|foreign key|violates.*constraint/i.test(error.message)) {
-        return { error: `Could not delete this account: ${error.message}` };
-      }
-      const { data, error: deactivateError } = await supabase.from("profiles")
-        .update({ active: false, updated_at: new Date().toISOString() }).eq("id", id).select("id").single();
-      if (deactivateError || !data) return { error: "Deletion was blocked, and access could not be deactivated. Refresh and try Deactivate." };
-      revalidatePath("/employees");
-      return { ok: true, deactivated: true };
-    }
+    if (error) return { error: `Could not permanently delete this account: ${error.message}. If linked history blocks deletion, apply the permanent employee account deletion migration.` };
     revalidatePath("/employees");
     return { ok: true };
   } catch (error) { return { error: error instanceof Error ? error.message : "Could not delete employee." }; }

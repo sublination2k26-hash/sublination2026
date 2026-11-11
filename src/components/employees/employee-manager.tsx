@@ -54,12 +54,12 @@ export function EmployeeManager() {
   };
   const edit = (employee: EmployeeAccount) => { setPassword(""); setEditing(employee); setName(employee.name); setEmail(employee.loginId); setRole(employee.role); setShowForm(true); };
   const remove = async (employee: EmployeeAccount) => {
-    if (saving || !window.confirm(`Remove ${employee.name}'s account? Accounts with linked history will be deactivated to preserve their records. Otherwise the login will be permanently deleted.`)) return;
+    if (saving || !window.confirm(`Permanently delete ${employee.name}'s login account? They will no longer be able to sign in. Saved work, orders and payroll history will be preserved.`)) return;
     setSaving(true); setError("");
     try {
       const result = await deleteEmployee(employee.id);
       if ("error" in result) setError(result.error);
-      else { setNotice(result.deactivated ? "Employee access deactivated. Linked work and payroll history has been preserved." : "Employee account deleted."); if (editing?.id === employee.id) resetForm(); await load(); }
+      else { setNotice("Employee login permanently deleted. Historical records have been preserved."); if (editing?.id === employee.id) resetForm(); await load(); }
     } finally { setSaving(false); }
   };
   const changeActive = async (employee: EmployeeAccount) => {

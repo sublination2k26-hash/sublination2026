@@ -24,6 +24,7 @@ export function DocumentRoutingManager({ initialDocuments }: { initialDocuments:
   const [notice, setNotice] = useState("");
   const [formKey, setFormKey] = useState(0);
   const [formOpen, setFormOpen] = useState(false);
+  const [historyOnly, setHistoryOnly] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   useEffect(() => {
@@ -38,7 +39,7 @@ export function DocumentRoutingManager({ initialDocuments }: { initialDocuments:
   const entries = [...(document?.document_routing_entries ?? [])].sort((a, b) => a.created_at.localeCompare(b.created_at));
   const pendingStages = pendingRoutingStages(entries);
   const canRelease = Boolean(document) && pendingStages.length === 0;
-  function choose(id: string | null) { setSelected(id); setError(""); setNotice(""); setFormKey(key => key + 1); setFormOpen(true); }
+  function choose(id: string | null, showHistory = false) { setHistoryOnly(showHistory); setSelected(id); setError(""); setNotice(""); setFormKey(key => key + 1); setFormOpen(true); }
   function print(item: RoutingDocument) {
     setError("");
     try { printRoutingDocument(item); }
@@ -112,12 +113,26 @@ export function DocumentRoutingManager({ initialDocuments }: { initialDocuments:
       <label>Current office<select value={stageFilter} onChange={event => setStageFilter(event.target.value)}><option value="">All stages</option>{routingStages.map(stage => <option key={stage}>{stage}</option>)}</select></label>
     </div>
     <SearchableList className="employee-table-wrap routing-table" role="region" aria-label="Document register" tabIndex={0}><table><thead><tr><th>PR / PO</th><th>DESCRIPTION / PAYEE</th><th>REQUEST DATE</th><th>AMOUNT</th><th>CURRENT STAGE</th><th>STAGE UPDATED (PH)</th><th>PAYMENT</th><th>ACTION</th></tr></thead><tbody>
-      {shown.map(item => <tr key={item.id}><td><b>{item.pr_number}</b><br/>{item.po_number || "—"}</td><td>{item.title}<br/>{item.payee}</td><td>{item.request_date}</td><td>{money(item.amount)}</td><td>{latestStage(item)}</td><td>{latestStageUpdatedAt(item) ? <time dateTime={latestStageUpdatedAt(item)!}>{new Date(latestStageUpdatedAt(item)!).toLocaleString("en-PH", { timeZone: "Asia/Manila" })}</time> : "—"}</td><td>{item.released_date ? `Released ${item.released_date}` : "Pending"}</td><td><div className="routing-actions"><button className="secondary-button" disabled={busy} onClick={() => choose(item.id)} aria-label={`Open ${item.pr_number}`}><FilePenLine size={16} aria-hidden="true"/>Open</button><button type="button" className="secondary-button" disabled={busy} onClick={() => print(item)} aria-label={`Print ${item.pr_number}`}><Printer size={16} aria-hidden="true"/>Print</button><button type="button" className="secondary-button" disabled={busy} onClick={() => void remove(item)} aria-label={`Delete ${item.pr_number}`}>Delete</button></div></td></tr>)}
+      {shown.map(item => <tr key={item.id}><td><button type="button" className="routing-pr-link" disabled={busy} onClick={() => choose(item.id, true)} aria-label={`View stage history for PR ${item.pr_number}`}>{item.pr_number}</button><br/>{item.po_number || "—"}</td><td>{item.title}<br/>{item.payee}</td><td>{item.request_date}</td><td>{money(item.amount)}</td><td>{latestStage(item)}</td><td>{latestStageUpdatedAt(item) ? <time dateTime={latestStageUpdatedAt(item)!}>{new Date(latestStageUpdatedAt(item)!).toLocaleString("en-PH", { timeZone: "Asia/Manila" })}</time> : "—"}</td><td>{item.released_date ? `Released ${item.released_date}` : "Pending"}</td><td><div className="routing-actions"><button className="secondary-button" disabled={busy} onClick={() => choose(item.id)} aria-label={`Open ${item.pr_number}`}><FilePenLine size={16} aria-hidden="true"/>Open</button><button type="button" className="secondary-button" disabled={busy} onClick={() => print(item)} aria-label={`Print ${item.pr_number}`}><Printer size={16} aria-hidden="true"/>Print</button><button type="button" className="secondary-button" disabled={busy} onClick={() => void remove(item)} aria-label={`Delete ${item.pr_number}`}>Delete</button></div></td></tr>)}
     </tbody></table>{shown.length === 0 && <p className="empty-inline">No documents match. Select New document or adjust the filters.</p>}</SearchableList>
     <dialog ref={dialog} className="routing-document-dialog" aria-labelledby={titleId} onCancel={event => { if (saving.current) event.preventDefault(); else setFormOpen(false); }} onClose={() => setFormOpen(false)}>
-    <div className="routing-dialog-heading"><h2 id={titleId}>{document ? `Routing sheet ? ${document.pr_number}` : "New document"}</h2><button type="button" className="secondary-button" disabled={busy} onClick={() => setFormOpen(false)} aria-label="Close document form">Close</button></div>
+    <div className="routing-dialog-heading"><h2 id={titleId}>{document ? `PR ${document.pr_number} - Routing history` : "New document"}</h2><button type="button" className="secondary-button" disabled={busy} onClick={() => setFormOpen(false)} aria-label="Close document form">Close</button></div>
     {error && formOpen && <p className="employee-error" role="alert">{error}</p>}
     {notice && formOpen && <p className="employee-notice" role="status">{notice}</p>}
+    {document && <section className="routing-history-summary" aria-label={`Stage dates for PR ${document.pr_number}`}>
+      <p>{document.title} {document.payee && ` / ${document.payee}`}</p>
+      <h3>Stage dates</h3>
+      <p>Latest dates for every stage. Pending stages have no recorded dates yet.</p>
+      <SearchableList className="employee-table-wrap routing-table routing-stage-summary"><table><thead><tr><th>STAGE</th><th>RECEIVED</th><th>FORWARDED</th><th>LAST UPDATED (PH)</th></tr></thead><tbody>{routingStages.map(stage => {
+        const latest = [...entries].reverse().find(entry => entry.stage === stage);
+        return <tr key={stage}><td><b>{stage}</b>{!latest && <small>Pending</small>}</td><td>{latest?.received_date ?? "Not recorded"}</td><td>{latest?.forwarded_date ?? "Not recorded"}</td><td>{latest ? <time dateTime={latest.created_at}>{new Date(latest.created_at).toLocaleString("en-PH", { timeZone: "Asia/Manila" })}</time> : "Not updated"}</td></tr>;
+      })}</tbody></table></SearchableList>
+      <h3>All recorded updates</h3>
+      <SearchableList className="employee-table-wrap routing-table"><table><thead><tr><th>OFFICE</th><th>RECEIVED</th><th>FORWARDED</th><th>HANDLED BY</th><th>REMARKS</th><th>RECORDED</th></tr></thead><tbody>{entries.map(entry => <tr key={entry.id}><td>{entry.stage}</td><td>{entry.received_date}</td><td>{entry.forwarded_date ?? "—"}</td><td>{entry.handled_by || "—"}</td><td className="routing-remarks">{entry.remarks || "—"}</td><td>{new Date(entry.created_at).toLocaleString("en-PH", { timeZone: "Asia/Manila" })}</td></tr>)}</tbody></table>{!entries.length && <p className="empty-inline">No office updates yet.</p>}</SearchableList>
+
+    </section>}
+    <details className="routing-edit-details" key={`${selected}-${historyOnly}`} open={!document || !historyOnly}>
+      <summary>{document ? "Edit document and update stage dates" : "Document details"}</summary>
     <form className="employee-form" key={`${selected}-${formKey}`} onSubmit={event => save(event)}>
       <fieldset disabled={busy}><div className="employee-form-fields">
         <label>P.R. number *<input name="pr_number" required maxLength={100} defaultValue={document?.pr_number}/></label>
@@ -158,10 +173,9 @@ export function DocumentRoutingManager({ initialDocuments }: { initialDocuments:
           {locked && <p>Complete the forwarded dates of all preceding stages first.</p>}
         </form>;
       })}</div>
-      <details><summary>Previous routing updates</summary>
-      <SearchableList className="employee-table-wrap routing-table"><table><thead><tr><th>OFFICE</th><th>RECEIVED</th><th>FORWARDED</th><th>HANDLED BY</th><th>REMARKS</th><th>RECORDED</th></tr></thead><tbody>{entries.map(entry => <tr key={entry.id}><td>{entry.stage}</td><td>{entry.received_date}</td><td>{entry.forwarded_date ?? "—"}</td><td>{entry.handled_by || "—"}</td><td className="routing-remarks">{entry.remarks || "—"}</td><td>{new Date(entry.created_at).toLocaleString("en-PH", { timeZone: "Asia/Manila" })}</td></tr>)}</tbody></table>{!entries.length && <p className="empty-inline">No office updates yet.</p>}</SearchableList>
-      </details>
+
     </>}
+    </details>
     </dialog>
   </section>;
 }
