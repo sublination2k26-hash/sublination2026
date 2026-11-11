@@ -134,7 +134,16 @@
 @media (max-width: 640px) {
   .routing-stage-forms, .routing-document-dialog .employee-form-fields { grid-template-columns: minmax(0, 1fr); }
 }
-.document-routing button.routing-pr-link { border: 0; background: transparent; color: #2563eb; box-shadow: none; text-decoration: underline; text-underline-offset: 3px; padding: 4px 0; min-height: 44px; font-weight: 700; }
+.document-routing button.routing-pr-link { display: inline-flex; align-items: center; justify-content: flex-start; gap: 10px; min-height: 60px; min-width: 160px; max-width: 100%; padding: 10px 12px; border: 1px solid #c7d9fc; border-radius: 10px; background: #eff6ff; color: #1d4ed8; text-decoration: none; text-align: left; box-shadow: none; }
+.document-routing .routing-pr-copy { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 4px; }
+.document-routing .routing-pr-copy strong { font-size: 14px; overflow-wrap: anywhere; white-space: normal; }
+.document-routing .routing-pr-copy > span { font-size: 11px; font-weight: 500; }
+.document-routing button.routing-pr-link:hover:not(:disabled) { background: #dbeafe; border-color: #60a5fa; box-shadow: 0 2px 6px #2563eb18; }
+.document-routing button.routing-pr-link:focus-visible { outline: 3px solid #2563eb; outline-offset: 3px; }
+.routing-po-label { display: block; margin-top: 6px; padding-left: 2px; color: var(--muted); font-size: 12px; }
+html[data-theme="dark"] .document-routing button.routing-pr-link { background: #253c60; border-color: #3b5c8a; color: #bfdbfe; }
+html[data-theme="dark"] .document-routing button.routing-pr-link:hover:not(:disabled) { background: #304d77; }
+@media(max-width:640px) { .document-routing button.routing-pr-link { width: 100%; } }
 .routing-history-summary > p { font-size: 14px; line-height: 1.6; }
 .routing-stage-summary td small { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; }
 .routing-edit-details { margin-top: 20px; border-top: 1px solid var(--line); padding-top: 16px; }
@@ -145,3 +154,10 @@
  .routing-stage-summary td:nth-child(3)::before { content: "Forwarded"; }
  .routing-stage-summary td:nth-child(4)::before { content: "Last updated (PH)"; }
 }
+.document-routing .routing-document-row { cursor: pointer; }
+.document-routing .routing-document-row:hover { background: #f5f9ff; }
+.routing-sheet-nav { display: flex; gap: 8px; margin: 20px 0 12px; }
+.document-routing .routing-sheet-nav button { flex: 1; min-height: 44px; }
+.document-routing .routing-sheet-nav button[aria-pressed="true"] { background: #2563eb; border-color: #2563eb; color: #fff; }
+.routing-document-dialog [hidden] { display: none !important; }
+html[data-theme="dark"] .document-routing .routing-document-row:hover { background: #253c60; }
