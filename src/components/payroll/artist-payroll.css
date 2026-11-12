@@ -19,3 +19,6 @@
  .artist-payroll .searchable-list-toolbar { flex-wrap: wrap; }
  .artist-payroll .searchable-list-toolbar label { min-width: 0; width: 100%; }
 }
+
+.artist-payroll-cutoffs { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.artist-payroll-cutoffs button[aria-pressed="true"] { background: #2563eb; color: white; }
