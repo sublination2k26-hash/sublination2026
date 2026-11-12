@@ -73,9 +73,18 @@ test('admin types promo prices without preset rates and approved pay remains loc
  assert.equal(Number((await db.query('select unit_rate from sewing_assignments where id=$1',[id(80)])).rows[0].unit_rate),37.5);
  assert.equal((await db.query('select promo_rate from sewing_garment_rates where employee_id=$1',[id(5)])).rows[0].promo_rate,null);
 
- await db.query("select approve_sewer_assignment_pay($1,'regular')",[records[1].id]);
+ await db.exec('reset role');
+ await migration(files.find(name=>name.endsWith('_admin_custom_sewing_regular_price.sql')));
+ await as(2);await assert.rejects(db.query("select approve_sewer_assignment_pay($1,'regular',null,42.25)",[records[1].id]),/Only admin/);
+ await as(1);
+ for(const invalid of ['-1','NaN','Infinity','10000000000','1.001'])await assert.rejects(db.query("select approve_sewer_assignment_pay($1,'regular',null,$2::numeric)",[records[1].id,invalid]),/valid regular price/);
+ await db.query("select approve_sewer_assignment_pay($1,'regular',null,42.25)",[records[1].id]);
+ await db.query("select approve_sewer_assignment_pay($1,'regular',null,42.25)",[records[1].id]);
+ await assert.rejects(db.query("select approve_sewer_assignment_pay($1,'regular',null,43)",[records[1].id]),/Only unreviewed/);
+ assert.equal(Number((await db.query('select unit_rate from sewing_assignments where id=$1',[id(81)])).rows[0].unit_rate),42.25);
+ await db.query('update sewing_garment_rates set unit_rate=99');
  const amounts=(await db.query('select quantity*unit_rate as amount from employee_work_records where sewing_assignment_id is not null order by employee_id')).rows;
- assert.equal(Number(amounts[0].amount),750);assert.equal(Number(amounts[1].amount),1500);
+ assert.equal(Number(amounts[0].amount),750);assert.equal(Number(amounts[1].amount),1267.5);
  await as(5);await claim(5,20,80); // retry remains valid after admin applied promo
  await as(1);await db.query('update sewing_garment_rates set promo_rate=99');
  const date=(await db.query("select (now() at time zone 'Asia/Manila')::date::text as day")).rows[0].day;
@@ -83,6 +92,6 @@ test('admin types promo prices without preset rates and approved pay remains loc
  const run=(await db.query('select create_payroll_run($1,$2) as id',[cutoff.start,cutoff.end])).rows[0].id;
  const saved=(await db.query('select period_start::text,period_end::text from payroll_runs where id=$1',[run])).rows[0];
  assert.equal(saved.period_start,cutoff.start);assert.equal(saved.period_end,cutoff.end);
- assert.equal(Number((await db.query("select sum(production_pay) as pay from payroll_lines where payroll_run_id=$1 and role='sewer'",[run])).rows[0].pay),2250);
+ assert.equal(Number((await db.query("select sum(production_pay) as pay from payroll_lines where payroll_run_id=$1 and role='sewer'",[run])).rows[0].pay),2017.5);
  await assert.rejects(db.query("select approve_sewer_assignment_pay($1,'regular')",[records[0].id]),/locked/);
 });
