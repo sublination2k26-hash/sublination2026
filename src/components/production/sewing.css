@@ -30,3 +30,25 @@
 .sewing-workspace .panel-heading h2 { overflow-wrap: anywhere; }
 .sewing-toolbar label { flex: 1 1 260px; min-width: 0; }
 .sewing-toolbar select { max-width: 100%; }
+
+.sewing-view-tabs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px;border-bottom:1px solid var(--line);padding-bottom:12px}
+.sewing-view-tabs button{min-height:42px;padding:10px 16px;border:1px solid #dce4ef;border-radius:8px;background:#fff;color:#53657c;font:600 13px 'DM Sans',sans-serif}
+.sewing-view-tabs button[aria-pressed="true"]{background:#eaf1ff;border-color:#8aadeb;color:#1d4ed8}
+.sewing-filters{padding:20px;border:1px solid #dce5f0;border-radius:12px;background:#f8faff;margin-bottom:18px}
+.sewing-filter-title{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;margin-bottom:16px}
+.sewing-filter-title h2{margin:0;font-size:18px}.sewing-filter-title p{font-size:12px;color:#64748b!important;margin:5px 0!important}
+.sewing-filter-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+.sewing-filter-grid label{min-width:0;color:#475569;font-weight:600}
+.sewing-filter-grid input,.sewing-filter-grid select{background:white;min-height:44px;border-color:#cdd9e9}
+.sewing-filter-footer{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-top:16px}
+.sewing-filter-footer>span{margin-right:auto;font-size:13px;color:#52657e}
+.sewing-job-list{display:grid;gap:12px}
+.sewing-job-list>.sewing-order{margin:0;padding:18px;border-radius:10px}
+.sewing-job-list .panel-heading{margin-bottom:0;align-items:center}.sewing-job-list .panel-heading>div:first-child{flex:1;min-width:180px}
+.sewing-job-list .panel-heading h2{font-size:18px;margin:0 0 5px}.sewing-job-list .panel-heading p{font-size:12px;margin:4px 0!important}
+.sewing-job-list .section-kicker{padding-left:0;font-size:11px}
+.sewing-job-preview{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 0;color:#52657e;font-size:12px}
+.sewing-job-preview span{padding:5px 9px;border-radius:6px;background:#f1f5fb}
+.sewing-job-list .table-wrap{max-width:100%;overflow:auto}.sewing-job-list .table-wrap table{min-width:620px}
+.sewing-filters input:focus-visible,.sewing-filters select:focus-visible,.sewing-view-tabs button:focus-visible,.sewing-job-list button:focus-visible{outline:2px solid #2563eb;outline-offset:3px}
+@media(max-width:600px){.sewing-filters{padding:14px}.sewing-filter-grid{grid-template-columns:1fr}.sewing-filter-title{flex-wrap:wrap}.sewing-job-list .panel-heading>.filter-button{width:100%}.sewing-view-tabs button{flex:1;padding:9px}.sewing-job-list>.sewing-order{padding:14px}}
