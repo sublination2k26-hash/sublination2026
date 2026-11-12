@@ -6,7 +6,11 @@ export function validSewingPeriod(start:string,end:string){
   const validDate=(value:string)=>/^\d{4}-\d{2}-\d{2}$/.test(value)&&Number.isFinite(Date.parse(value+'T00:00:00Z'))&&new Date(value+'T00:00:00Z').toISOString().slice(0,10)===value;
   return validDate(start)&&validDate(end)&&start<=end;
 }
-export function sewingReconciliation(target:number,assignments:SewingAssignment[],events:SewingCompletion[],encodings:SewingEncoding[]){
+export function sewingReconciliation(target:number,assignments:SewingAssignment[],events:SewingCompletion[],encodings:SewingEncoding[],employeeId?:string){
+  if(employeeId){
+    assignments=assignments.filter(a=>a.employee_id===employeeId);
+    target=assignments.reduce((sum,a)=>sum+Number(a.quantity),0);
+  }
   const pending=encodings.filter(e=>e.status==='pending');
   const rows=assignments.map(a=>{
     const done=events.filter(e=>e.assignment_id===a.id&&e.kind==='completion').reduce((n,e)=>n+Number(e.quantity),0);

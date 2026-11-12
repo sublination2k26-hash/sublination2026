@@ -6,8 +6,9 @@ import {readAllRows} from "@/lib/workspace-loading";
 import {manilaToday} from "@/lib/payment-tracking";
 import {validSewingPeriod,sewingReconciliation,sewingPeriodTotals,type SewingEncoding,type SewingWork,type SewingAssignment,type SewingCompletion} from "@/lib/sewing-payroll";
 import "./sewing-monitor.css";
+import {activeSewerEmployees} from "@/lib/sewer-employees";
 
-type Data={audit:{id:number;encoding_id:string|null;task_id:string|null;actor_id:string;action:string;reason:string;created_at:string}[];encodings:SewingEncoding[];work:SewingWork[];assignments:SewingAssignment[];events:SewingCompletion[];tasks:{id:string;order_id:string;order_item_id:string}[];items:{id:string;quantity:number;product_name:string;customization:{garment?:string}}[];orders:{id:string;order_number:string;customer_id:string}[];customers:{id:string;full_name:string}[];employees:{id:string;full_name:string}[];controls:{task_id:string;paused:boolean;reason:string}[];runs:{id:string;period_start:string;period_end:string;status:string}[];lines:{payroll_run_id:string;employee_id:string;role:string;approved_units:number;production_pay:number;total_pay:number}[]};
+type Data={audit:{id:number;encoding_id:string|null;task_id:string|null;actor_id:string;action:string;reason:string;created_at:string}[];encodings:SewingEncoding[];work:SewingWork[];assignments:SewingAssignment[];events:SewingCompletion[];tasks:{id:string;order_id:string;order_item_id:string}[];items:{id:string;quantity:number;product_name:string;customization:{garment?:string}}[];orders:{id:string;order_number:string;customer_id:string}[];customers:{id:string;full_name:string}[];employees:{id:string;full_name:string;role:string;active:boolean}[];controls:{task_id:string;paused:boolean;reason:string}[];runs:{id:string;period_start:string;period_end:string;status:string}[];lines:{payroll_run_id:string;employee_id:string;role:string;approved_units:number;production_pay:number;total_pay:number}[]};
 const empty:Data={audit:[],encodings:[],work:[],assignments:[],events:[],tasks:[],items:[],orders:[],customers:[],employees:[],controls:[],runs:[],lines:[]};
 const money=(n:number)=>'PHP '+Number(n).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
 const errorMessage=(e:unknown)=>(e as {message?:string})?.message??'Could not save. Try again.';
@@ -29,7 +30,7 @@ export function SewingMonitor({role,refreshToken,onUpdated}:{role:string;refresh
       const results=await Promise.all([
         page('sewing_encodings','*'),page('employee_work_records','id,employee_id,task_id,quantity,unit_rate,work_date,status,pay_eligible,payroll_run_id,activity').then(rows=>rows.filter(w=>String(w.activity).startsWith('Sewing')&&w.activity!=='Sewing rework')),
         page('sewing_assignments','id,task_id,employee_id,quantity,pay_on_assignment'),page('sewing_events','assignment_id,kind,quantity'),page('production_tasks','id,order_id,order_item_id,stage').then(rows=>rows.filter(t=>t.stage==='sewing')),
-        page('order_items','id,quantity,product_name,customization'),page('orders','id,order_number,customer_id'),page('customers','id,full_name'),page('profiles','id,full_name'),
+        page('order_items','id,quantity,product_name,customization'),page('orders','id,order_number,customer_id'),page('customers','id,full_name'),page('profiles','id,full_name,role,active'),
         readAllRows((from,to)=>db.from('sewing_payroll_controls').select('*').order('task_id').range(from,to)),
         page('payroll_runs','id,period_start,period_end,status'),page('payroll_lines','payroll_run_id,employee_id,role,approved_units,production_pay,total_pay'),admin?page('sewing_encoding_audit','id,encoding_id,task_id,actor_id,action,reason,created_at'):Promise.resolve([])
       ]);
@@ -45,7 +46,7 @@ export function SewingMonitor({role,refreshToken,onUpdated}:{role:string;refresh
   const tasks=data.tasks.map(task=>{
     const item=data.items.find(i=>i.id===task.order_item_id),order=data.orders.find(o=>o.id===task.order_id);
     const assignments=data.assignments.filter(a=>a.task_id===task.id),encodings=data.encodings.filter(e=>e.task_id===task.id),work=data.work.filter(w=>w.task_id===task.id);
-    const summary=sewingReconciliation(admin?(item?.quantity??0):assignments.reduce((n,a)=>n+Number(a.quantity),0),assignments,data.events,encodings);
+    const summary=sewingReconciliation(admin?(item?.quantity??0):assignments.reduce((n,a)=>n+Number(a.quantity),0),assignments,data.events,encodings,selectedSewer||undefined);
     const label=[data.customers.find(c=>c.id===order?.customer_id)?.full_name??'Customer',item?.customization?.garment??item?.product_name,order?.order_number].filter(Boolean).join(' · ');
     return {...task,label,assignments,encodings,work,summary,paused:data.controls.find(c=>c.task_id===task.id&&c.paused)};
   });
@@ -63,8 +64,8 @@ export function SewingMonitor({role,refreshToken,onUpdated}:{role:string;refresh
   const people=Array.from(new Set([...selectedWork.filter(w=>validPeriod&&w.work_date>=start&&w.work_date<=end).map(w=>w.employee_id),...periodEncodings.map(e=>e.employee_id)]));
   return <section className="sewing-monitor panel">
     <div className="monitor-heading"><div><div className="section-kicker">SEWING & PAYROLL</div><h2>{admin?'Production reconciliation & pay':'Your encoding & pay'}</h2><p>Pay is based on assigned pieces and the price approved by admin in Payroll Work review. Completion tracking does not add pay. Amounts are sewing output pay before deductions.</p></div><button type="button" className="quiet-button" disabled={busy||loading} onClick={()=>void load()}>Refresh</button></div>
-    <div className="monitor-filters"><label>Start date<input type="date" required value={start} max={end||undefined} onChange={e=>setStart(e.target.value)}/></label><label>End date<input type="date" required value={end} min={start||undefined} onChange={e=>setEnd(e.target.value)}/></label><label>Sewer<select value={selectedSewer} onChange={e=>setSelectedSewer(e.target.value)}><option value="">All visible sewers</option>{Array.from(new Set(data.assignments.map(a=>a.employee_id))).map(id=><option key={id} value={id}>{name(id)}</option>)}</select></label></div>
-    <p className="monitor-caption">Cutoff: <b>{start} to {end}</b>. Reconciliation below uses all-time quantities so changing the cutoff never hides a discrepancy.</p>
+    <div className="monitor-filters"><label>Start date<input type="date" required value={start} max={end||undefined} onChange={e=>setStart(e.target.value)}/></label><label>End date<input type="date" required value={end} min={start||undefined} onChange={e=>setEnd(e.target.value)}/></label><label>Sewer<select value={selectedSewer} onChange={e=>setSelectedSewer(e.target.value)}><option value="">All sewers</option>{activeSewerEmployees(data.employees).map(employee=><option key={employee.id} value={employee.id}>{employee.full_name}</option>)}</select></label></div>
+    <p className="monitor-caption">Cutoff: <b>{start} to {end}</b>. Reconciliation uses all-time quantities. {selectedSewer?`Quantities and status show ${name(selectedSewer)}'s assignments; the target is their assigned quantity.`:'Job quantities and status include all visible sewers; the target is the full job quantity for admin.'} Pay amounts use the selected cutoff.</p>
     {!validPeriod&&<p role="alert" className="blocked-message">Choose valid start and end dates. End date must be on or after start date.</p>}
     {error&&<p className="blocked-message" role="alert">{error}</p>}{notice&&<p role="status" className="monitor-notice">{notice}</p>}
     {loading?<p role="status">Loading sewing and payroll records…</p>:<>

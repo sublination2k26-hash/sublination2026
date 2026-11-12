@@ -1,5 +1,19 @@
 const {test}=require('node:test');const assert=require('node:assert/strict');const fs=require('node:fs');const vm=require('node:vm');const ts=require('typescript');
 const x={};vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/lib/sewing-payroll.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{exports:x,Date,Set,Math,Number});
+
+test('selected sewer quantities and status use only their assignments',()=>{
+ const assignments=[{id:'a',employee_id:'1',quantity:20},{id:'b',employee_id:'2',quantity:30}];
+ const events=[{assignment_id:'a',kind:'completion',quantity:15}];
+ const encodings=[{assignment_id:'a',quantity:5,status:'pending'},{assignment_id:'b',quantity:31,status:'pending'}];
+ const selected=x.sewingReconciliation(76,assignments,events,encodings,'1');
+ assert.equal(selected.target,20);assert.equal(selected.assigned,20);assert.equal(selected.encoded,20);
+ assert.equal(selected.remaining,0);assert.equal(selected.status,'balanced');assert.equal(selected.employees.length,1);
+ assert.equal(assignments.length,2);
+ const all=x.sewingReconciliation(76,assignments,events,encodings);
+ assert.equal(all.target,76);assert.equal(all.assigned,50);assert.equal(all.encoded,51);assert.equal(all.status,'over');
+ const other=x.sewingReconciliation(76,assignments,events,encodings,'2');
+ assert.equal(other.status,'over');assert.equal(other.excess,1);
+});
 test('51 encoded against 50 stays red until corrected; pause is independent of warnings',()=>{
  const assignments=[{id:'a',employee_id:'1',quantity:20},{id:'b',employee_id:'2',quantity:30}];
  const pending=[{assignment_id:'a',quantity:20,status:'pending'},{assignment_id:'b',quantity:31,status:'pending'}];
