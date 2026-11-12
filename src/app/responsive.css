@@ -96,3 +96,42 @@ input,select,textarea{max-width:100%}
 .order-payment-folders{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
 .order-payment-folders .filter-button{height:auto;min-height:44px;padding:10px 14px;cursor:pointer}
 .order-payment-folders .filter-button[aria-pressed="true"]{background:#2563eb;border-color:#2563eb;color:#fff}
+
+/* Allow nested flex/grid content to shrink before its tables start scrolling. */
+.detail-main,.detail-side,.detail-grid>*,.bottom-grid>*,.form-grid>*,.payroll-two-col>*,.searchable-list,.standalone-panel>*,.job-card{min-width:0;max-width:100%}
+.detail-heading>a.primary-button{text-decoration:none}
+#order-pickup{scroll-margin-top:16px}
+@media(max-width:900px){
+  .shell .detail-grid,.shell .bottom-grid,.shell .payroll-two-col{grid-template-columns:minmax(0,1fr)}
+  .detail-grid-release>.detail-side{grid-row:1}
+  .shell .detail-facts b,.shell .summary-line,.shell .checklist,.shell .job-card{overflow-wrap:anywhere}
+  .shell .order-actions,.shell .filters,.shell .filter-row,.shell .form-actions{flex-wrap:wrap;gap:8px;max-width:100%}
+  .shell .workflow{flex-direction:column;align-items:stretch;gap:10px;overflow:visible}
+  .shell .workflow-step{gap:10px;min-width:0;font-size:13px}
+  .shell .workflow-step>span{flex:none}
+  .shell .workflow-step>b{max-width:none;font-size:13px;line-height:1.5;white-space:normal}
+  .shell .workflow-step>i{display:none}
+  .shell .workflow-step .link-button{white-space:normal;text-align:left}
+  .shell .detail-back,.shell .summary-line{flex-wrap:wrap;gap:8px}
+  .shell .piece-release-panel .release-field-row{grid-template-columns:minmax(0,1fr)}
+  .shell .release-summary>*{min-width:0;max-width:100%;overflow-wrap:anywhere}
+  .shell .release-form,.shell .release-form fieldset{width:100%;min-width:0}
+  .shell .release-form input,.shell .release-form select,.shell .release-form textarea{min-width:0;width:100%}
+}
+@media(max-width:600px){
+  .shell .board{display:grid;grid-template-columns:minmax(0,1fr);overflow:visible;scroll-snap-type:none}
+  .shell .board-lane{width:100%;min-width:0;min-height:0;scroll-snap-align:none}
+  .shell .filter-button,.shell .quiet-button,.shell .text-button,.shell .link-button{height:auto;white-space:normal;max-width:100%;text-align:left;overflow-wrap:anywhere}
+  .shell .filter-button svg,.shell .text-button svg,.shell .quiet-button svg{flex-shrink:0}
+  .shell .panel-heading{align-items:flex-start}
+  .shell .panel-heading>div{max-width:100%}
+  .shell .metric-top,.shell .metric-foot{height:auto;min-height:17px;flex-wrap:wrap;gap:6px}
+  .shell .qc-item>span:nth-child(2),.shell .balance-list button>span{min-width:0;overflow-wrap:anywhere}
+  .shell .qc-item>svg,.shell .qc-icon{flex-shrink:0}
+  .shell .balance-list button{flex-wrap:wrap;gap:8px}
+  .shell .table-wrap,.shell .employee-table-wrap,.shell .payroll-table-wrap,.shell .roster-scroll{min-width:0;width:100%;max-width:100%}
+  .shell .searchable-list-scroll{overflow-wrap:normal}
+  .shell footer{flex-wrap:wrap;gap:10px;overflow-wrap:anywhere}
+  .modal .form-actions{flex-wrap:wrap}
+  .modal .form-actions button{white-space:normal}
+}

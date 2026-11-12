@@ -64,7 +64,7 @@ export function PieceReleases({ orderId, quantity, status, canRelease, isAdmin, 
   }
   const pickupCount = releaseAll ? remaining : Number(pieces);
   const pieceLabel = (count: number) => count === 1 ? "piece" : "pieces";
-  return <section className="panel piece-release-panel">
+  return <section id="order-pickup" className="panel piece-release-panel">
     <div className="section-kicker">PIECE RELEASES</div>
     <h2>Record a pickup</h2>
     <div className="release-summary">
