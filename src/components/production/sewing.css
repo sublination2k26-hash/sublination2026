@@ -61,3 +61,10 @@
 
 .sewing-job-prices tr.sewing-over-produced td { background: #fef2f2; color: #b91c1c; }
 .sewing-job-prices tr.sewing-over-produced small { display: block; color: #b91c1c; font-weight: 600; }
+.sewing-job-list .sewing-assigned-summary .table-wrap table { min-width: 0; width: 100%; }
+.sewing-assigned-summary td { white-space: normal; overflow-wrap: anywhere; }
+@media(max-width:600px) {
+  .sewing-assigned-summary th, .sewing-assigned-summary td { padding: 10px 6px; }
+  .sewing-assigned-summary td:first-child { width: 65%; }
+  .sewing-job-prices { padding: 12px; }
+}

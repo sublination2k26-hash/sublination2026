@@ -11,6 +11,7 @@ import { buildCompleteSewingExcel, buildSewingReport, printSewingReport } from "
 import { garmentCategories } from "@/lib/garment-options";
 import { getOwnSewingRate } from "@/actions/employees";
 import "./sewing.css";
+import { AssignmentGarmentPrices } from "./assignment-garment-prices";
 import { SewingMonitor } from "./sewing-monitor";
 import { manilaToday } from "@/lib/payment-tracking";
 import { SewingEarnings } from "./sewing-earnings";
@@ -22,7 +23,7 @@ type Employee = { id: string; full_name: string; role: string; active: boolean }
 type Assignment = { payroll_price_confirmed:boolean; pay_on_assignment:boolean;pricing_mode:string;unit_rate:number; id: string; task_id: string | null; employee_id: string; quantity: number; assigned_by: string; notes: string; created_at: string };
 type SewingEvent = { id: string; assignment_id: string; kind: string; quantity: number; recorded_by: string; notes: string; created_at: string };
 type QueueEntry = { task_id: string; available_quantity: number; claimed_quantity: number };
-type GarmentRate = { employee_id:string; garment:string; unit_rate:number; promo_rate:number|null };
+type GarmentRate = { garment:string; unit_rate:number; promo_rate:number|null };
 type Compensation = { employee_id:string; salary_basis:string; piece_rate:number };
 const peso=(value:number)=>`PHP ${Number(value).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2})}`;
 type Data = { encodings:SewingEncoding[]; prices:GarmentRate[]; compensation:Compensation[]; tasks: Task[]; items: Item[]; orders: Order[]; employees: Employee[]; assignments: Assignment[]; events: SewingEvent[]; queue: QueueEntry[] };
@@ -74,7 +75,7 @@ export function SewingManager({ userId, role, initialOrderId = "" }: { userId: s
         readAllRows((from, to) => db.from("sewing_events").select("*").order("created_at").order("id").range(from, to)),
         readAllRows((from, to) => db.rpc("get_sewing_queue").order("task_id").range(from, to)),
         readAllRows((from, to) => db.from("customers").select("id,full_name").order("id").range(from, to)),
-        role === "admin" ? readAllRows((from,to)=>db.from("sewing_garment_rates").select("employee_id,garment,unit_rate,promo_rate").order("employee_id").order("garment").range(from,to)) : Promise.resolve([]),
+        role === "admin" ? readAllRows((from,to)=>db.from("sewing_shared_garment_rates").select("garment,unit_rate,promo_rate").order("garment").range(from,to)) : Promise.resolve([]),
         role === "admin" ? readAllRows((from,to)=>db.from("employee_compensation").select("employee_id,salary_basis,piece_rate").order("employee_id").range(from,to)) : Promise.resolve([]),
         readAllRows((from,to)=>db.from("sewing_encodings").select("*").order("id").range(from,to)),
       ]);
@@ -130,7 +131,7 @@ export function SewingManager({ userId, role, initialOrderId = "" }: { userId: s
       const { data: orderId, error: createError } = await createClient().rpc("create_sewing_example_order");
       if (createError) throw createError;
       setSelected(orderId as string);setSearch("");setReportSewer("");setGarmentFilter("");setStatusFilter("active");setView("jobs");
-      setNotice("Example order: 24 jerseys. Sewers can now choose and claim their own quantities from the shared queue. Example output is excluded from piece pay by default.");
+      setNotice("Example order: 24 jerseys, with 10 pieces assigned to one sewer. Sample Regular PHP 50 = PHP 500; Promo PHP 40 = PHP 400. Excluded from payroll.");
       await load();
     } catch (cause) { setError(message(cause)); }
     finally { saving.current = false; setBusy(false); }
@@ -141,7 +142,7 @@ export function SewingManager({ userId, role, initialOrderId = "" }: { userId: s
     if (role !== "sewer") return;
     void Promise.allSettled([
       getOwnSewingRate(),
-      readAllRows((from, to) => createClient().from("sewing_garment_rates").select("garment,unit_rate,promo_rate").eq("employee_id", userId).order("garment").range(from, to)),
+      readAllRows((from, to) => createClient().from("sewing_shared_garment_rates").select("garment,unit_rate,promo_rate").order("garment").range(from, to)),
     ]).then(([defaultRate, garments]) => {
       if (cancelled) return;
       setRate(defaultRate.status === "fulfilled" ? defaultRate.value : { error: "Could not load your default sewing rate." });
@@ -265,10 +266,11 @@ export function SewingManager({ userId, role, initialOrderId = "" }: { userId: s
         {openTask===task.id&&<div id={`sewing-job-${task.id}`}>
         {role === "sewer" && <p className="sewing-job-rate"><b>Your price per tahi{item.customization?.garment ? ` (${item.customization.garment})` : ""}:</b> {pricePerPiece(item.customization?.garment)}</p>}
         {role === "sewer" && !ratesLoading && !ratesError && !rate.error && <p className="sewing-job-rate"><b>Your promo price per piece:</b> {ownPromo==null?"Not configured":peso(ownPromo)}. Admin applies the payroll price in Work review.</p>}
-        {role === "admin" && <div className="sewing-job-prices">
+        {role === "admin" && <div className="sewing-job-prices sewing-assigned-summary">
           <h3>Assigned sewers</h3>
           {assignedSewers.length > 0 ? <div className="table-wrap"><table><thead><tr><th>SEWER</th><th>ASSIGNED PIECES</th></tr></thead><tbody>{assignedSewers.map(sewer => <tr key={sewer.employeeId} className={sewer.over ? "sewing-over-produced" : undefined}><td><b>{employeeName(sewer.employeeId)}</b>{sewer.over && <small>Excess garments: {assignments.filter(a => a.employee_id === sewer.employeeId).reduce((sum,a) => sum + Math.max(0,totals(a.id,"completion") + data.encodings.filter(e => e.assignment_id === a.id && e.status === "pending").reduce((n,e) => n + Number(e.quantity),0) - Number(a.quantity)),0)} over assigned pieces ({sewer.encoded} made / encoded)</small>}</td><td>{sewer.assigned}</td></tr>)}</tbody></table></div> : <p>No assigned sewers{reportSewer ? " matching the selected filter" : " yet"}.</p>}
         </div>}
+        {role === "admin" && <AssignmentGarmentPrices garment={jobGarment} quantities={Object.fromEntries(assignedSewers.map(sewer=>[sewer.employeeId,sewer.assigned]))} onSaved={()=>load(true)}/>}
         <div className="sewing-stages">{sequence.map(stage => { const stageTask = data.tasks.find(value => value.order_item_id === task.order_item_id && value.stage === stage); return stageTask ? <span key={stage} className={stageTask.status === "completed" ? "sewing-stage-done" : ""}>{stageNames[stage]} · {stageTask.status.replaceAll("_", " ")}</span> : null; })}</div>
         {availability && <p><b>{available} pieces available to claim</b> · {Number(availability.claimed_quantity)} pieces already reserved across all sewers.</p>}
         {role === "sewer" && !closed && available > 0 && <form className="sewing-form" onSubmit={event => void save(event, "claim", task.id)}><b>Choose pieces for yourself</b><label>Pieces to take<input name="quantity" type="number" min={1} max={available} step={1} required disabled={busy}/></label><label>Bundle / sizes / notes<input name="notes" maxLength={1000} disabled={busy}/></label><button className="primary-button" disabled={busy}>Assign to me</button><small>Pay is based on the quantity you assign to yourself with the price selected by admin in Payroll. Handoff and completion are tracked separately.</small></form>}

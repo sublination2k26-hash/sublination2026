@@ -1,0 +1,30 @@
+.sewing-garment-pay-settings { min-width: 0; max-width: 100%; }
+.sewing-garment-pay-settings p { overflow-wrap: anywhere; }
+.sewing-garment-pay-settings .payroll-form-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); }
+.sewing-garment-pay-settings .payroll-form-grid label { min-width: 0; }
+.sewing-garment-pay-settings .payroll-form-grid input,
+.sewing-garment-pay-settings .payroll-form-grid select { box-sizing: border-box; width: 100%; min-width: 0; min-height: 44px; height: auto; padding: 10px; font-size: 16px; }
+.sewing-garment-pay-settings button { min-height: 44px; white-space: normal; overflow-wrap: anywhere; }
+.garment-price-totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); gap: 10px; margin: 14px 0; }
+.garment-price-totals > div { min-width: 0; padding: 12px; border: 1px solid var(--line); border-radius: 8px; }
+.garment-price-totals dt { font-size: 12px; }
+.garment-price-totals dd { margin: 6px 0 0; font-weight: 700; overflow-wrap: anywhere; }
+.sewing-garment-pay-settings input:focus-visible,
+.sewing-garment-pay-settings select:focus-visible,
+.sewing-garment-pay-settings button:focus-visible { outline: 2px solid #2563eb; outline-offset: 3px; }
+@media (max-width: 600px) {
+  .sewing-garment-pay-settings .payroll-form-grid { grid-template-columns: minmax(0, 1fr); }
+  .sewing-garment-pay-settings .primary-button,
+  .sewing-job-prices > .filter-button { width: 100%; justify-content: center; min-height: 44px; height: auto; }
+  .sewing-garment-pay-settings .searchable-list-toolbar { flex-wrap: wrap; }
+  .sewing-garment-pay-settings .searchable-list-toolbar label { min-width: 0; width: 100%; }
+  .sewing-garment-pay-settings .searchable-list-toolbar input { box-sizing: border-box; width: 100%; min-width: 0; font-size: 16px; }
+  .sewing-garment-pay-settings .payroll-table-wrap table,
+  .sewing-job-list .sewing-garment-pay-settings .payroll-table-wrap table { display: block; min-width: 0; width: 100%; }
+  .sewing-garment-pay-settings .payroll-table-wrap thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .sewing-garment-pay-settings .payroll-table-wrap tbody { display: grid; gap: 12px; padding: 8px; }
+  .sewing-garment-pay-settings .payroll-table-wrap tr { display: block; padding: 10px; border: 1px solid var(--line); border-radius: 8px; }
+  .sewing-garment-pay-settings .payroll-table-wrap td { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; height: auto; min-height: 36px; padding: 8px 0; white-space: normal; overflow-wrap: anywhere; }
+  .sewing-garment-pay-settings .payroll-table-wrap td::before { content: attr(data-label); font-weight: 600; }
+  .sewing-garment-pay-settings .payroll-link { width: 100%; font-size: 14px; }
+}
