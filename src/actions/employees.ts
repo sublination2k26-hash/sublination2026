@@ -37,7 +37,7 @@ export async function getOwnSewingRate(): Promise<{ rate?: number | null; basis?
     const { data: { user }, error } = await db.auth.getUser();
     if (error || !user) throw new Error("Sign in to view your sewing rate.");
     const { data: profile } = await db.from("profiles").select("role,active").eq("id", user.id).maybeSingle();
-    if (!profile?.active || profile.role !== "cutting_sewing") throw new Error("Only active sewers can view their rate here.");
+    if (!profile?.active || profile.role !== "sewer") throw new Error("Only active sewers can view their rate here.");
     const { data, error: rateError } = await db.rpc("get_own_sewing_rate").returns<{ piece_rate: number; salary_basis: string }[]>().maybeSingle();
     if (rateError) throw rateError;
     return { rate: data ? Number(data.piece_rate) : null, basis: data?.salary_basis };

@@ -10,7 +10,8 @@ const roles: { role: AppRole; title: string; responsibilities: string; permissio
   { role: "artist", title: "Artist / Layout Designer", responsibilities: "Prepares artwork and checks personalized design details.", permissions: ["View assigned job details and design files", "Update the layout stage", "Report design corrections"] },
   { role: "printing", title: "Printing Staff", responsibilities: "Prints approved sublimation layouts.", permissions: ["View the printing queue and approved files", "Update the printing stage", "Report printing defects"] },
   { role: "heat_press", title: "Heat Press Staff", responsibilities: "Transfers printed designs onto fabric.", permissions: ["View the heat press queue", "Update the heat press stage", "Report transfer defects"] },
-  { role: "cutting_sewing", title: "Cutting / Sewing Staff", responsibilities: "Cuts printed fabric and assembles garments.", permissions: ["View assigned cutting and sewing jobs", "Update cutting and sewing stages", "Report damaged or missing pieces"] },
+  { role: "cutter", title: "Cutter", responsibilities: "Cuts printed fabric and prepares garment pieces.", permissions: ["View cutting jobs and upcoming cutting work", "Update cutting stages", "Report damaged or missing pieces"] },
+  { role: "sewer", title: "Sewer", responsibilities: "Assembles garments and records completed sewing output.", permissions: ["View sewing jobs and claim pieces", "Record own sewing output", "Report sewing defects"] },
   { role: "qc", title: "Quality Control (QC)", responsibilities: "Inspects finished work and records defects.", permissions: ["View completed production jobs", "Record QC checks and defects", "Approve or return work for correction"] },
 ];
 

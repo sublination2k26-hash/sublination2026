@@ -48,6 +48,12 @@ test('admin deletion backs up pickups and sewing links while retaining earned pa
   assert.equal((await db.query('select * from deleted_order_backups')).rows.length,0,'failed delete rolls backup back');
   await db.exec(fs.readFileSync('supabase/migrations/20261110030344_admin_order_deletion_related_records.sql','utf8'));
   await assert.rejects(db.query('delete from order_items where id=$1',[item]),/partial release/);
+  await db.exec(fs.readFileSync('supabase/migrations/'+fs.readdirSync('supabase/migrations').find(name=>name.endsWith('_require_cancelled_order_before_deletion.sql')),'utf8'));
+  await assert.rejects(db.query('delete from orders where id=$1',[order]),/Cancel the order first/);
+  assert.equal((await db.query('select * from deleted_order_backups')).rows.length,0);
+  await db.query("update orders set status='cancelled' where id=$1",[order]);
+  assert.equal((await db.query('select count(*)::int as n from order_items where order_id=$1',[order])).rows[0].n,1,'cancellation preserves items');
+  assert.equal((await db.query('select count(*)::int as n from order_releases where order_id=$1',[order])).rows[0].n,1,'cancellation preserves release history');
   await db.exec('set role authenticated');
   for(const staff of [2,3,5,6]) {
     await db.query("select set_config('test.uid',$1,false)",[id(staff)]);
@@ -61,6 +67,7 @@ test('admin deletion backs up pickups and sewing links while retaining earned pa
   const backup=(await db.query('select * from deleted_order_backups')).rows[0];
   assert.equal(backup.deleted_by,id(1));
   assert.equal(backup.snapshot.orders.id,order);
+  assert.equal(backup.snapshot.orders.status,'cancelled');
   assert.equal(backup.snapshot.order_releases[0].pickup_payment_id,payment);
   assert.equal(backup.snapshot.sewing_assignments[0].task_id,task);
   assert.equal(backup.snapshot.sewing_events[0].id,event);
@@ -74,6 +81,7 @@ test('admin deletion backs up pickups and sewing links while retaining earned pa
   await db.exec('reset role');
   const recent=(await db.query('insert into orders(customer_id,total) values($1,500) returning id',[customer])).rows[0].id;
   await db.query('insert into payments(order_id,amount) values($1,500)',[recent]);
+  await db.query("update orders set status='cancelled' where id=$1",[recent]);
   await db.exec('set role authenticated');
   await assert.rejects(db.query('delete from orders where id=$1',[recent]),/at least 3 months/);
   assert.equal((await db.query('select * from orders where id=$1',[recent])).rows.length,1);

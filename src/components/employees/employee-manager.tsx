@@ -11,7 +11,7 @@ import type { AppRole } from "@/lib/auth/permissions";
 const roleOptions: { id: AppRole; label: string }[] = [
   { id: "admin", label: "Admin / Owner" }, { id: "front_desk", label: "Front Desk" },
   { id: "artist", label: "Artist / Layout Designer" }, { id: "printing", label: "Printing Staff" },
-  { id: "heat_press", label: "Heat Press Staff" }, { id: "cutting_sewing", label: "Cutting / Sewing Staff" },
+  { id: "heat_press", label: "Heat Press Staff" }, { id: "cutter", label: "Cutter" }, { id: "sewer", label: "Sewer" },
   { id: "qc", label: "Quality Control (QC)" },
 ];
 

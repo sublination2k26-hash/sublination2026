@@ -6,7 +6,7 @@ const { PGlite } = require('@electric-sql/pglite');
 test('artist activities, payroll evidence, replies, mentions and account isolation', async t => {
   const db = new PGlite(); t.after(() => db.close());
   const id = n => `00000000-0000-0000-0000-${String(n).padStart(12, '0')}`;
-  await db.exec(`create role anon; create role authenticated; create schema auth;
+  await db.exec(`set timezone='Asia/Manila';create role anon; create role authenticated; create schema auth;
     create table auth.users(id uuid primary key);
     create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('test.uid',true),'')::uuid$$;
     grant usage on schema auth to authenticated,anon;`);

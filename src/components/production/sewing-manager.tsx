@@ -8,13 +8,15 @@ import { buildCompleteSewingExcel, buildSewingReport, printSewingReport } from "
 import { garmentCategories } from "@/lib/garment-options";
 import { getOwnSewingRate } from "@/actions/employees";
 import "./sewing.css";
+import { SewingMonitor } from "./sewing-monitor";
+import { manilaToday } from "@/lib/payment-tracking";
 import { SewingEarnings } from "./sewing-earnings";
 
 type Task = { id: string; order_id: string; order_item_id: string; stage: string; status: string };
 type Item = { id: string; product_name: string; quantity: number; customization: { names?: string; garment?: string }; notes: string | null };
 type Order = { customer_id: string; id: string; order_number: string; status: string; notes: string | null; due_date: string | null };
 type Employee = { id: string; full_name: string; role: string; active: boolean };
-type Assignment = { id: string; task_id: string | null; employee_id: string; quantity: number; assigned_by: string; notes: string; created_at: string };
+type Assignment = { payroll_price_confirmed:boolean; pay_on_assignment:boolean;pricing_mode:string;unit_rate:number; id: string; task_id: string | null; employee_id: string; quantity: number; assigned_by: string; notes: string; created_at: string };
 type SewingEvent = { id: string; assignment_id: string; kind: string; quantity: number; recorded_by: string; notes: string; created_at: string };
 type QueueEntry = { task_id: string; available_quantity: number; claimed_quantity: number };
 type Data = { tasks: Task[]; items: Item[]; orders: Order[]; employees: Employee[]; assignments: Assignment[]; events: SewingEvent[]; queue: QueueEntry[] };
@@ -28,7 +30,7 @@ export function SewingManager({ userId, role, initialOrderId = "" }: { userId: s
   const [customers, setCustomers] = useState<{ id: string; full_name: string }[]>([]);
   const [search, setSearch] = useState("");
   const [rate, setRate] = useState<Awaited<ReturnType<typeof getOwnSewingRate>>>({});
-  const [garmentRates, setGarmentRates] = useState<{ garment: string; unit_rate: number }[]>([]);
+  const [garmentRates, setGarmentRates] = useState<{ garment: string; unit_rate: number; promo_rate?:number|null }[]>([]);
   const [ratesError, setRatesError] = useState("");
   const [ratesLoading, setRatesLoading] = useState(true);
   const [estimateGarment, setEstimateGarment] = useState("Jersey");
@@ -85,18 +87,22 @@ export function SewingManager({ userId, role, initialOrderId = "" }: { userId: s
     const quantity = Number(values.get("quantity"));
     if (!Number.isSafeInteger(quantity) || quantity < 1) { setError("Enter a positive whole number of pieces."); return; }
     const args = { p_action: action, p_task_id: taskId, p_assignment_id: assignmentId ?? null, p_employee_id: values.get("employee") || null, p_quantity: quantity, p_notes: String(values.get("notes") ?? "").trim() };
-    const signature = JSON.stringify(args);
+    const mode=String(values.get("pricing_mode")??"regular");
+    const workDate=String(values.get("work_date")??manilaToday());
+    const signature = JSON.stringify({args,mode,workDate});
     if (!pending.current.has(signature)) pending.current.set(signature, crypto.randomUUID());
     saving.current = true; setBusy(true); setError(""); setNotice("");
     try {
       const db = createClient();
-      const { error: saveError } = action === "claim"
-        ? await db.rpc("claim_sewing_pieces", { p_task_id: taskId, p_quantity: quantity, p_notes: args.p_notes, p_request_id: pending.current.get(signature)! })
+      const { error: saveError } = action === "claim" || action === "assign"
+        ? await db.rpc("assign_priced_sewing_pieces",{p_task:taskId,p_employee:action==="claim"?userId:args.p_employee_id,p_quantity:quantity,p_mode:mode,p_notes:args.p_notes,p_id:pending.current.get(signature)!})
+        : action === "convert" ? await db.rpc("convert_sewing_assignment_pay",{p_assignment:assignmentId,p_mode:mode,p_reason:args.p_notes})
+        : action === "completion" ? await db.rpc("encode_sewing_output", {p_id:pending.current.get(signature)!,p_assignment:assignmentId,p_quantity:quantity,p_mode:mode,p_date:workDate,p_notes:args.p_notes})
         : await db.rpc("record_sewing_action", { ...args, p_request_id: pending.current.get(signature)! });
       if (saveError) throw saveError;
       pending.current.delete(signature);
       form.reset();
-      setNotice(action === "claim" ? "Pieces assigned to you. Wait for the materials handoff before recording output." : action === "assign" ? "Assignment saved. The sewer can see it immediately." : action === "handoff" ? "Materials handoff recorded." : "Sewing output saved for admin payroll review.");
+      setNotice(action === "claim" ? "Pieces assigned. Your assigned quantity and selected rate are now in payroll Work review." : action === "assign" ? "Assignment saved. The sewer can see it immediately." : action === "handoff" ? "Materials handoff recorded." : "Encoding saved for admin review. Pending quantities and warnings appear in weekly monitoring.");
       await load();
     } catch (cause) { setError(message(cause)); }
     finally { saving.current = false; setBusy(false); }
@@ -117,14 +123,14 @@ export function SewingManager({ userId, role, initialOrderId = "" }: { userId: s
 
   useEffect(() => {
     let cancelled = false;
-    if (role !== "cutting_sewing") return;
+    if (role !== "sewer") return;
     void Promise.allSettled([
       getOwnSewingRate(),
-      readAllRows((from, to) => createClient().from("sewing_garment_rates").select("garment,unit_rate").eq("employee_id", userId).order("garment").range(from, to)),
+      readAllRows((from, to) => createClient().from("sewing_garment_rates").select("garment,unit_rate,promo_rate").eq("employee_id", userId).order("garment").range(from, to)),
     ]).then(([defaultRate, garments]) => {
       if (cancelled) return;
       setRate(defaultRate.status === "fulfilled" ? defaultRate.value : { error: "Could not load your default sewing rate." });
-      setGarmentRates(garments.status === "fulfilled" ? garments.value as { garment: string; unit_rate: number }[] : []);
+      setGarmentRates(garments.status === "fulfilled" ? garments.value as { garment: string; unit_rate: number; promo_rate?:number|null }[] : []);
       setRatesError(garments.status === "rejected" ? "Could not load garment rates. Press Refresh to try again." : "");
       setRatesLoading(false);
     });
@@ -170,11 +176,11 @@ export function SewingManager({ userId, role, initialOrderId = "" }: { userId: s
 
   return <div className="sewing-workspace">
     <div className="sewing-toolbar"><label>Search team / JO<input type="search" value={search} onChange={event => { setSearch(event.target.value); setSelected(""); }} placeholder="Team name or JO number"/></label><label>Team / customer<select value={selected} onChange={event => setSelected(event.target.value)}><option value="">All sewing orders</option>{[...visibleOrders].sort((a, b) => teamName(a).localeCompare(teamName(b))).map(order => <option key={order.id} value={order.id}>{teamName(order)} / {order.order_number}{order.notes?.startsWith("[SEWING EXAMPLE]") ? " · EXAMPLE" : ""}</option>)}</select></label><button className="filter-button" disabled={busy || loading} onClick={() => void load()}>Refresh</button>{canAssign && <button className="primary-button" disabled={busy || loading} onClick={() => void example()}>Create example order</button>}</div>
-    {role === "cutting_sewing" && <section className="panel sewing-rates" aria-label="Your sewing prices">
+    {role === "sewer" && <section className="panel sewing-rates" aria-label="Your sewing prices">
       <h2>Your price per tahi</h2>
       <p><b>Default rate:</b> {pricePerPiece()}</p>
       {ratesError && <p role="alert">{ratesError}</p>}
-      {!ratesLoading && !rate.error && rate.rate !== null && rate.basis !== "fixed" && garmentRates.length > 0 && <SearchableList recordSelector=":scope > div" className="sewing-rate-list">{garmentRates.map(entry => <div key={entry.garment}><span>{entry.garment}</span><b>PHP {Number(entry.unit_rate).toFixed(2)} / piece</b></div>)}</SearchableList>}
+      {!ratesLoading && !rate.error && rate.rate !== null && rate.basis !== "fixed" && garmentRates.length > 0 && <SearchableList recordSelector=":scope > div" className="sewing-rate-list">{garmentRates.map(entry => <div key={entry.garment}><span>{entry.garment}</span><b>Regular: PHP {Number(entry.unit_rate).toFixed(2)} ? Promo: {entry.promo_rate==null?"Not set":`PHP ${Number(entry.promo_rate).toFixed(2)}`} / piece</b></div>)}</SearchableList>}
       {!ratesLoading && !ratesError && !rate.error && rate.rate != null && rate.basis !== "fixed" && garmentRates.length === 0 && <p>No separate garment rates saved. The default rate applies.</p>}
       <div className="sewing-form" role="group" aria-label="Estimate your sewing pay">
         <b>Estimate your sewing pay</b>
@@ -185,13 +191,14 @@ export function SewingManager({ userId, role, initialOrderId = "" }: { userId: s
       <p>Estimate only, before deductions and adjustments. Actual output pay uses the rate saved at completion and requires payroll approval.</p>
       <p>These are your current rates. Completed output keeps its saved rate and is subject to payroll review.</p>
     </section>}
-    {role === "cutting_sewing" && <SewingEarnings userId={userId} refreshToken={data}/>}
+    {["admin","sewer"].includes(role)&&<SewingMonitor role={role} refreshToken={data} onUpdated={load}/>}
+    {role === "sewer" && <SewingEarnings userId={userId} refreshToken={data}/>}
     <p>New sewing orders automatically appear in every sewer’s shared queue. Each sewer chooses a quantity and assigns those pieces to themselves. Front Desk records the materials handoff after earlier stages are complete; each sewer records their own output.</p>
     {notice && <p role="status" className="sewing-notice">{notice}</p>}
     {error && <p role="alert" className="blocked-message">{error}</p>}
     {!loading && <section className="panel sewing-order" aria-label="Sewing output report">
       <div className="section-kicker">SEWING DETAILS &amp; REPORTS</div><h2>How many pieces did each sewer finish?</h2>
-      <p>The assigned sewer records their own completed pieces. Every assignment, materials handoff, and output entry keeps the recorder’s name and date. Completed output is subject to payroll review and QC.</p>
+      <p>The assigned sewer records their own completed pieces. Every assignment, materials handoff, and output entry keeps the recorder’s name and date. Assigned pieces determine pay. Completed output is tracked for production and QC without a second payment.</p>
       <div className="sewing-toolbar">
         {canAssign && <label>Report sewer<select value={reportSewer} onChange={event => setReportSewer(event.target.value)}><option value="">All assigned sewers</option>{data.employees.filter(employee => data.assignments.some(assignment => assignment.employee_id === employee.id)).map(employee => <option key={employee.id} value={employee.id}>{employee.full_name}</option>)}</select></label>}
         <button type="button" className="filter-button" disabled={!canReport || exporting} onClick={() => void exportComplete()}>{exporting ? "Preparing Excel…" : "Excel — complete sewing report"}</button>
@@ -199,7 +206,7 @@ export function SewingManager({ userId, role, initialOrderId = "" }: { userId: s
       </div>
       <p>Excel includes three sheets: Sewer totals, Order breakdown, and Activity history. Choose All sewing orders and All assigned sewers to include every sewer’s recorded work. Rework does not add to completed pieces. Each sheet is ready to print with repeating headers.</p>
       <div className="sewing-totals"><span>Assigned<b>{report.totals.assigned}</b></span><span>Handed over<b>{report.totals.handed}</b></span><span>Completed<b>{report.totals.completed}</b></span><span>Remaining<b>{report.totals.remaining}</b></span><span>Rework<b>{report.totals.rework}</b></span></div>
-      <SearchableList className="table-wrap"><table><thead><tr><th>JOB ORDER / PRODUCT</th><th>ASSIGNED SEWER</th><th>ASSIGNED BY / DATE</th><th>ASSIGNED</th><th>HANDED OVER</th><th>COMPLETED</th><th>REMAINING</th><th>REWORK</th><th>LAST OUTPUT RECORDER / DATE</th></tr></thead><tbody>{report.summaries.map(row => <tr key={row.id}><td><b>{row.team || row.order}</b><small>{row.order} ? {row.product}</small></td><td>{row.sewer}</td><td>{row.assignedBy}<small>{row.assignedAt}</small></td><td>{row.assigned}</td><td>{row.handed}</td><td><b>{row.completed}</b></td><td>{row.remaining}</td><td>{row.rework}</td><td>{row.recordedBy || "No output yet"}<small>{row.lastOutput}</small></td></tr>)}</tbody></table></SearchableList>
+      <SearchableList className="table-wrap"><table><thead><tr><th>JOB ORDER / PRODUCT</th><th>ASSIGNED SEWER</th><th>ASSIGNED BY / DATE</th><th>ASSIGNED / PAY</th><th>HANDED OVER</th><th>COMPLETED</th><th>REMAINING</th><th>REWORK</th><th>LAST OUTPUT RECORDER / DATE</th></tr></thead><tbody>{report.summaries.map(row => <tr key={row.id}><td><b>{row.team || row.order}</b><small>{row.order} ? {row.product}</small></td><td>{row.sewer}</td><td>{row.assignedBy}<small>{row.assignedAt}</small></td><td>{row.assigned}</td><td>{row.handed}</td><td><b>{row.completed}</b></td><td>{row.remaining}</td><td>{row.rework}</td><td>{row.recordedBy || "No output yet"}<small>{row.lastOutput}</small></td></tr>)}</tbody></table></SearchableList>
       {report.summaries.length === 0 && <p>No recorded assignments match this report.</p>}
     </section>}
     <SearchableList recordSelector=":scope > section.sewing-order">{loading ? <p role="status">Loading sewing work…</p> : tasks.length === 0 ? <p>No sewing orders found.{canAssign ? " Create a garment order or use the example above." : " New orders that include sewing will appear here automatically."}</p> : tasks.map(task => {
@@ -218,23 +225,24 @@ export function SewingManager({ userId, role, initialOrderId = "" }: { userId: s
       const history = data.events.filter(entry => assignments.some(a => a.id === entry.assignment_id));
       return <section key={task.id} className="panel sewing-order">
         <div className="panel-heading"><div><div className="section-kicker">{order.order_number}{order.notes?.startsWith("[SEWING EXAMPLE]") ? " · EXAMPLE" : ""}</div><h2>{teamName(order)}</h2><p><b>{item.product_name}</b></p><p>{item.quantity} pieces in order · Due {order.due_date || "not set"}</p></div><span className="pill blue">{closed ? order.status.replaceAll("_", " ") : task.status === "completed" ? "Sewing completed" : ready ? "Ready for handoff / sewing" : "Waiting for materials"}</span></div>
-        {role === "cutting_sewing" && <p className="sewing-job-rate"><b>Your price per tahi{item.customization?.garment ? ` (${item.customization.garment})` : ""}:</b> {pricePerPiece(item.customization?.garment)}</p>}
+        {role === "sewer" && <p className="sewing-job-rate"><b>Your price per tahi{item.customization?.garment ? ` (${item.customization.garment})` : ""}:</b> {pricePerPiece(item.customization?.garment)}</p>}
         <div className="sewing-stages">{sequence.map(stage => { const stageTask = data.tasks.find(value => value.order_item_id === task.order_item_id && value.stage === stage); return stageTask ? <span key={stage} className={stageTask.status === "completed" ? "sewing-stage-done" : ""}>{stageNames[stage]} · {stageTask.status.replaceAll("_", " ")}</span> : null; })}</div>
         {availability && <p><b>{available} pieces available to claim</b> · {Number(availability.claimed_quantity)} pieces already reserved across all sewers.</p>}
-        {role === "cutting_sewing" && !closed && available > 0 && <form className="sewing-form" onSubmit={event => void save(event, "claim", task.id)}><b>Choose pieces for yourself</b><label>Pieces to take<input name="quantity" type="number" min={1} max={available} step={1} required disabled={busy}/></label><label>Bundle / sizes / notes<input name="notes" maxLength={1000} disabled={busy}/></label><button className="primary-button" disabled={busy}>Assign to me</button><small>This reserves pieces under your own account. Front Desk confirms the materials handoff before sewing output can be recorded.</small></form>}
+        {role === "sewer" && !closed && available > 0 && <form className="sewing-form" onSubmit={event => void save(event, "claim", task.id)}><b>Choose pieces for yourself</b><label>Pieces to take<input name="quantity" type="number" min={1} max={available} step={1} required disabled={busy}/></label><label>Bundle / sizes / notes<input name="notes" maxLength={1000} disabled={busy}/></label><button className="primary-button" disabled={busy}>Assign to me</button><small>Pay is based on the quantity you assign to yourself with the price selected by admin in Payroll. Handoff and completion are tracked separately.</small></form>}
         {!ready && <p><a className="text-button" href="/dashboard?view=Production">Open Production to update earlier stages</a></p>}
         <div className="sewing-totals"><span>{canAssign ? "Assigned" : "Assigned to you"}<b>{assigned}</b></span><span>Handed over<b>{handed}</b></span><span>Completed<b>{completed}</b></span><span>Still to sew<b>{assigned - completed}</b></span>{canAssign && <span>Unassigned<b>{item.quantity - assigned}</b></span>}</div>
         {item.customization?.names && <p><b>Sizes / personalization:</b> {item.customization.names}</p>}{item.notes && <p><b>Instructions:</b> {item.notes}</p>}
-        {canAssign && !closed && task.status !== "completed" && assigned < item.quantity && <form className="sewing-form" onSubmit={event => void save(event, "assign", task.id)}><label>Sewer<select name="employee" required disabled={busy}><option value="">Choose sewer</option>{data.employees.filter(employee => employee.active && employee.role === "cutting_sewing").map(employee => <option key={employee.id} value={employee.id}>{employee.full_name}</option>)}</select></label><label>Pieces to assign<input name="quantity" type="number" min={1} max={item.quantity - assigned} step={1} required disabled={busy}/></label><label>Bundle / sizes / instructions<input name="notes" maxLength={1000} disabled={busy}/></label><button className="primary-button" disabled={busy}>Assign pieces</button></form>}
-        <SearchableList className="table-wrap"><table><thead><tr><th>SEWER</th><th>ASSIGNED</th><th>HANDED OVER</th><th>COMPLETED</th><th>WAITING FOR HANDOFF</th><th>READY TO SEW</th></tr></thead><tbody>{assignments.map(assignment => <tr key={assignment.id}><td><b>{employeeName(assignment.employee_id)}</b><small>Assigned by {employeeName(assignment.assigned_by)}</small><small>{assignment.notes}</small></td><td>{assignment.quantity}</td><td>{totals(assignment.id, "handoff")}</td><td>{totals(assignment.id, "completion")}</td><td>{assignment.quantity - totals(assignment.id, "handoff")}</td><td>{totals(assignment.id, "handoff") - totals(assignment.id, "completion")}</td></tr>)}</tbody></table></SearchableList>
+        {canAssign && !closed && task.status !== "completed" && assigned < item.quantity && <form className="sewing-form" onSubmit={event => void save(event, "assign", task.id)}><label>Sewer<select name="employee" required disabled={busy}><option value="">Choose sewer</option>{data.employees.filter(employee => employee.active && employee.role === "sewer").map(employee => <option key={employee.id} value={employee.id}>{employee.full_name}</option>)}</select></label><label>Pieces to assign<input name="quantity" type="number" min={1} max={item.quantity - assigned} step={1} required disabled={busy}/></label><label>Bundle / sizes / instructions<input name="notes" maxLength={1000} disabled={busy}/></label><button className="primary-button" disabled={busy}>Assign pieces</button></form>}
+        <SearchableList className="table-wrap"><table><thead><tr><th>SEWER</th><th>ASSIGNED / PAY</th><th>HANDED OVER</th><th>COMPLETED</th><th>WAITING FOR HANDOFF</th><th>READY TO SEW</th></tr></thead><tbody>{assignments.map(assignment => <tr key={assignment.id}><td><b>{employeeName(assignment.employee_id)}</b><small>Assigned by {employeeName(assignment.assigned_by)}</small><small>{assignment.notes}</small></td><td>{assignment.quantity}{assignment.pay_on_assignment&&<small>{assignment.payroll_price_confirmed?assignment.pricing_mode:"Awaiting admin payroll price (regular estimate)"} ? PHP {Number(assignment.unit_rate).toFixed(2)} / piece<br/>Assignment pay: PHP {(assignment.quantity*Number(assignment.unit_rate)).toFixed(2)}</small>}</td><td>{totals(assignment.id, "handoff")}</td><td>{totals(assignment.id, "completion")}</td><td>{assignment.quantity - totals(assignment.id, "handoff")}</td><td>{totals(assignment.id, "handoff") - totals(assignment.id, "completion")}</td></tr>)}</tbody></table></SearchableList>
         {assignments.length === 0 && <p>{canAssign ? "No pieces assigned yet. Sewers can choose their own quantities from the shared queue." : "You have not claimed pieces from this order yet."}</p>}
         {!closed && assignments.map(assignment => {
           const toHand = assignment.quantity - totals(assignment.id, "handoff");
           const toSew = totals(assignment.id, "handoff") - totals(assignment.id, "completion");
           return <div key={assignment.id} className="sewing-actions">
+            {role==="admin"&&!assignment.pay_on_assignment&&<form className="sewing-form" onSubmit={event=>void save(event,"convert",task.id,assignment.id)}><b>Use assigned pieces for pay</b><p>Convert this unpaid assignment. Existing payroll stays locked.</p><input type="hidden" name="quantity" value={assignment.quantity}/><p>Choose Regular or Promo later in Payroll Work review.</p><label>Conversion reason<input required name="notes" maxLength={1000} disabled={busy}/></label><button disabled={busy} className="filter-button">Use assignment pay</button></form>}
             {canAssign && toHand > 0 && <form className="sewing-form" onSubmit={event => void save(event, "handoff", task.id, assignment.id)}><b>Hand over to {employeeName(assignment.employee_id)}</b><label>Ready-to-sew pieces<input name="quantity" type="number" min={1} max={toHand} step={1} required disabled={busy || !ready}/></label><label>Handoff note<input name="notes" maxLength={1000} disabled={busy || !ready}/></label><button className="filter-button" disabled={busy || !ready}>Record handoff</button>{!ready && <small>Waiting for earlier production stages.</small>}</form>}
-            {role === "cutting_sewing" && assignment.employee_id === userId && toSew > 0 && <form className="sewing-form" onSubmit={event => void save(event, "completion", task.id, assignment.id)}><b>Your sewing output</b><label>Pieces completed<input name="quantity" type="number" min={1} max={toSew} step={1} required disabled={busy || !ready}/></label><label>Output note<input name="notes" maxLength={1000} disabled={busy}/></label><button className="primary-button" disabled={busy || !ready}>Record completed pieces</button></form>}
-            {role === "cutting_sewing" && assignment.employee_id === userId && totals(assignment.id, "completion") > 0 && <details><summary>Record rework (excluded from piece pay by default)</summary><form className="sewing-form" onSubmit={event => void save(event, "rework", task.id, assignment.id)}><label>Pieces corrected<input name="quantity" type="number" min={1} max={totals(assignment.id, "completion")} step={1} required disabled={busy || !ready}/></label><label>Correction reason<input name="notes" maxLength={1000} required disabled={busy}/></label><button className="filter-button" disabled={busy || !ready}>Record rework</button></form></details>}
+            {role === "sewer" && assignment.employee_id === userId && toSew > 0 && <form className="sewing-form" onSubmit={event => void save(event, "completion", task.id, assignment.id)}><b>Your sewing output</b><label>Work date<input name="work_date" type="date" required defaultValue={manilaToday()} max={manilaToday()} disabled={busy}/></label><label>Pieces encoded<input name="quantity" type="number" min={1} max={1000000} step={1} required disabled={busy || !ready}/></label><label>Output note<input name="notes" maxLength={1000} disabled={busy}/></label><button className="primary-button" disabled={busy || !ready}>Submit output for review</button><small>Over-encoded quantities stay visible for correction and cannot enter payroll.</small></form>}
+            {role === "sewer" && assignment.employee_id === userId && totals(assignment.id, "completion") > 0 && <details><summary>Record rework (excluded from piece pay by default)</summary><form className="sewing-form" onSubmit={event => void save(event, "rework", task.id, assignment.id)}><label>Pieces corrected<input name="quantity" type="number" min={1} max={totals(assignment.id, "completion")} step={1} required disabled={busy || !ready}/></label><label>Correction reason<input name="notes" maxLength={1000} required disabled={busy}/></label><button className="filter-button" disabled={busy || !ready}>Record rework</button></form></details>}
           </div>;
         })}
         {history.length > 0 && <details className="sewing-history"><summary>Handoff and output history ({history.length})</summary><SearchableList className="table-wrap"><table><thead><tr><th>DATE</th><th>SEWER</th><th>ACTION</th><th>PIECES</th><th>RECORDED BY</th><th>NOTE</th></tr></thead><tbody>{history.map(entry => <tr key={entry.id}><td>{new Date(entry.created_at).toLocaleString("en-PH", { timeZone: "Asia/Manila" })}</td><td>{employeeName(assignments.find(a => a.id === entry.assignment_id)!.employee_id)}</td><td>{entry.kind}</td><td>{entry.quantity}</td><td>{employeeName(entry.recorded_by)}</td><td>{entry.notes}</td></tr>)}</tbody></table></SearchableList></details>}

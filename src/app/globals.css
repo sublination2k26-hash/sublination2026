@@ -33,3 +33,41 @@ button{font-family:inherit;cursor:pointer}input,select,textarea{font:inherit;col
 .standalone-panel:has(.payroll-manager){display:block;min-height:0;padding:22px;text-align:left}@media(max-width:700px){.standalone-panel:has(.payroll-manager){padding:13px}}
 
 .correction-queue{border:2px solid #d97706;padding:20px;margin-bottom:24px;background:#fffbeb;color:#78350f}.correction-card{border:2px solid #d97706!important;background:#fff7ed!important;color:#78350f!important}.correction-card strong{color:#b45309}
+/* Pickup form: scoped controls stay readable in the narrow order sidebar. */
+.piece-release-panel{min-width:0;container-type:inline-size}
+.piece-release-panel>.section-kicker{padding-left:0;padding-bottom:7px;color:#64748b}
+.piece-release-panel>h2{margin:0 0 16px;font:700 21px Manrope,sans-serif;color:var(--ink)}
+.release-summary{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:15px;margin-bottom:22px;border:1px solid #dce7f6;border-radius:10px;background:#f5f8fe}
+.release-summary>div{display:flex;flex-direction:column;gap:3px}
+.release-summary strong{font:800 26px Manrope,sans-serif;color:#1d4ed8;line-height:1.2}
+.release-summary strong span{font-size:17px;font-weight:600;color:#64748b}
+.release-summary>div>span{font-size:12px;color:#52627a}
+.release-remaining{padding:6px 9px;border-radius:6px;background:#e4edfd;color:#254d94;font-size:12px;font-weight:600}
+.release-summary progress{display:block;flex-basis:100%;width:100%;height:6px;overflow:hidden;border:0;border-radius:6px;background:#dfe7f2;accent-color:#2563eb}
+.release-summary progress::-webkit-progress-bar{background:#dfe7f2;border-radius:6px}
+.release-summary progress::-webkit-progress-value{background:#2563eb;border-radius:6px}
+.release-summary progress::-moz-progress-bar{background:#2563eb;border-radius:6px}
+.release-form{display:flex;flex-direction:column;gap:19px}
+.release-form fieldset{display:flex;flex-direction:column;gap:13px;min-width:0;margin:0;padding:0;border:0}
+.release-form fieldset+fieldset{padding-top:17px;border-top:1px solid #e5eaf2}
+.release-form legend{float:left;width:100%;margin-bottom:1px;padding:0;color:var(--ink);font-size:14px;font-weight:700}
+.release-form label{display:flex;flex-direction:column;align-items:stretch;gap:7px;min-width:0;color:#40516a;font-size:13px;font-weight:600;line-height:1.4}
+.release-optional{display:inline;color:#778397;font-size:11px;font-weight:400}
+.release-form input,.release-form select,.release-form textarea{display:block;width:100%;max-width:100%;min-width:0;min-height:44px;border:1px solid #cfd8e5;border-radius:8px;background:#fff;padding:10px 12px;color:var(--ink);font:400 14px 'DM Sans',sans-serif;line-height:1.4;transition:border-color .15s,box-shadow .15s}
+.release-form select{padding-right:24px}
+.release-form textarea{min-height:76px;resize:vertical}
+.release-form input::placeholder,.release-form textarea::placeholder{color:#8994a6;font-size:13px}
+.release-form input:focus-visible,.release-form select:focus-visible,.release-form textarea:focus-visible{outline:2px solid #2563eb;outline-offset:2px;border-color:#2563eb}
+.release-form input:disabled,.release-form select:disabled,.release-form textarea:disabled{background:#f1f5f9;color:#64748b;cursor:not-allowed}
+.release-field-row{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:12px}
+.release-help,.release-policy{margin:0;color:#65748b;font-size:12px;line-height:1.6}
+.release-exception{padding:12px;border:1px solid #e0e5ed;border-radius:8px;background:#fafbfd}
+.release-exception summary{color:#53647b;font-size:12px;font-weight:600;cursor:pointer;padding:3px 0}
+.release-exception summary:focus-visible{outline:2px solid #2563eb;outline-offset:4px}
+.release-exception[open] summary{margin-bottom:10px}
+.release-exception .release-help{margin-bottom:12px}
+.release-policy{padding:12px;border-radius:8px;background:#f4f7fb}
+.release-form .release-submit{width:100%;height:auto;min-height:46px;justify-content:center;font-size:14px;white-space:normal;line-height:1.4;padding:12px 14px}
+.release-submit:disabled{opacity:.65;cursor:wait}
+.release-history-title{margin:24px 0 10px;font-size:14px;color:var(--ink)}
+@container(max-width:270px){.release-field-row{grid-template-columns:1fr}}

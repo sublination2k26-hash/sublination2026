@@ -26,7 +26,7 @@ export function OrderForm({ products, onSave, onCancel, allowArtwork }: { produc
     let active = true;
     void (async () => {
       try {
-        const {data, error} = await createClient().from("profiles").select("id,full_name").eq("role", "cutting_sewing").eq("active", true).order("full_name");
+        const {data, error} = await createClient().from("profiles").select("id,full_name").eq("role", "sewer").eq("active", true).order("full_name");
         if (!active) return;
         if (error) throw error;
         setSewers(data ?? []);

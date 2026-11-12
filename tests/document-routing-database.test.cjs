@@ -73,3 +73,16 @@ test('document routing: admin access, preserved history, dates, money and concur
   await assert.rejects(db.exec('select * from routing_documents'), /permission denied/);
   await assert.rejects(db.exec('select * from document_routing_entries'), /permission denied/);
 });
+
+
+test('routing office rename preserves existing entry history and accepts ADMIN', async t => {
+  const db=new PGlite();t.after(()=>db.close());
+  await db.exec(`create table public.document_routing_entries(id integer primary key,stage text constraint document_routing_entries_stage_check check(stage in ('BADMIN','GSO')),created_at timestamptz,remarks text);
+    insert into public.document_routing_entries values(1,'BADMIN','2026-10-01','Saved history'),(2,'GSO','2026-10-02','Other office');`);
+  await db.exec(fs.readFileSync('supabase/migrations/'+fs.readdirSync('supabase/migrations').find(name=>name.endsWith('_rename_routing_badmin_to_admin.sql')),'utf8'));
+  const entries=(await db.query('select * from document_routing_entries order by id')).rows;
+  assert.equal(entries[0].stage,'ADMIN');assert.equal(entries[0].remarks,'Saved history');
+  assert.equal(entries[0].created_at.toISOString(),'2026-10-01T00:00:00.000Z');assert.equal(entries[1].stage,'GSO');
+  await db.exec("insert into document_routing_entries(id,stage) values(3,'ADMIN')");
+  await assert.rejects(db.exec("insert into document_routing_entries(id,stage) values(4,'BADMIN')"),/check constraint/);
+});

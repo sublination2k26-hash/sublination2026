@@ -40,7 +40,7 @@ export function AttendanceManager({ isAdmin, currentEmployee }: { isAdmin: boole
     setError("");
     try {
       const [e, q, c, a, s] = await Promise.all([
-        isAdmin ? db.from("profiles").select("id,full_name,role,active").not("role", "in", "(admin,cutting_sewing)").order("full_name") : Promise.resolve({ data: [currentEmployee], error: null }),
+        isAdmin ? db.from("profiles").select("id,full_name,role,active").not("role", "in", "(admin,sewer)").order("full_name") : Promise.resolve({ data: [currentEmployee], error: null }),
         db.from("employee_attendance_qr").select("employee_id,token,payment_method"),
         db.from("employee_compensation").select("employee_id,base_rate,pay_frequency"),
         db.from("employee_attendance").select("*").eq("work_date", date).order("created_at"),

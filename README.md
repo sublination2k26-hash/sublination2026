@@ -84,7 +84,7 @@ Apply `supabase/migrations/20261027064919_document_routing.sql` in the configure
 
 Create a document with its unique PR number, optional PO number, description, payee, request date and amount. Open a document to edit details, record cheque/BIR references, gross payment, tax deduction and release details. Net payment is calculated as gross minus tax. A release date requires a cheque number, recipient/signature reference and positive gross payment; it cannot precede the request date.
 
-Add dated office updates through PR, PO, COA, BAC, GSO, BADMIN, GSO BODEGA, INSPECTOR, NUMBERING, CHECKING, ACCOUNTING, ASSESSORS and CHEQUE RELEASE. The last recorded entry is the current stage; stages may repeat for returns or corrections. Earlier entries cannot be edited or deleted. Office dates and initials are manually recorded; signature references are text, not digital signatures. Payment release and office routing are recorded separately. Search by PR/PO, description or payee and filter by stage. Only active admins can read or write these records, enforced by database RLS as well as the page guard.
+Add dated office updates through PR, PO, COA, BAC, GSO, ADMIN, GSO BODEGA, INSPECTOR, NUMBERING, CHECKING, ACCOUNTING, ASSESSORS and CHEQUE RELEASE. The last recorded entry is the current stage; stages may repeat for returns or corrections. Earlier entries cannot be edited or deleted. Office dates and initials are manually recorded; signature references are text, not digital signatures. Payment release and office routing are recorded separately. Search by PR/PO, description or payee and filter by stage. Only active admins can read or write these records, enforced by database RLS as well as the page guard.
 
 Validation: `node --test tests/document-routing-database.test.cjs` verifies the migration, admin isolation, immutable routing entries, financial constraints and stale-edit protection in an isolated database.
 
@@ -109,7 +109,7 @@ Apply `supabase/migrations/20261022084023_service_production_routes.sql` before 
 
 ## Sewing work tracking
 
-Apply `supabase/migrations/20261026060520_sewing_only_work_tracking.sql`. Only sewing tasks completed by an active Cutter / Sewer create new payroll work records. All staff remain eligible for payroll, and all production stages continue to track order progress. Historical work records and payroll snapshots are preserved. Non-sewing staff use the attendance workflow below for daily pay.
+Apply `supabase/migrations/20261026060520_sewing_only_work_tracking.sql`. Only sewing tasks completed by an active Sewer create new payroll work records. All staff remain eligible for payroll, and all production stages continue to track order progress. Historical work records and payroll snapshots are preserved. Non-sewing staff use the attendance workflow below for daily pay.
 
 ## Attendance payroll
 
@@ -149,7 +149,7 @@ Use **PDF** on an issued record to download its payslip. Payslips are standalone
 
 ### Sewer assignments and Front Desk handoffs
 
-Apply `supabase/migrations/20261029065538_sewer_assignments.sql` after the earlier migrations, then apply `supabase/migrations/20261029074932_sewer_self_claim.sql`. Skip migrations already applied. Open **Sewing assignments** (`/sewing`) as Admin, Front Desk, or Cutting / Sewing staff. Order details also link to the order's sewing assignments.
+Apply `supabase/migrations/20261029065538_sewer_assignments.sql` after the earlier migrations, then apply `supabase/migrations/20261029074932_sewer_self_claim.sql`. Skip migrations already applied. Open **Sewing assignments** (`/sewing`) as Admin, Front Desk, or Sewer staff. Order details also link to the order's sewing assignments.
 
 Every active sewing order appears automatically in all sewers' shared queue, including its instructions, upstream stage status, and total unclaimed quantity. Each sewer enters how many pieces they want and clicks **Assign to me**. The authenticated sewer is both the assignee and assignment recorder; they cannot claim for another account. Claims and Front Desk reservations share a database task lock, preventing the combined quantity from exceeding the order item. A stale balance is rejected if another sewer has already taken the pieces. Claiming reserves pieces and does not record a handoff, completion, or payroll output. Individual assignment rows and output histories remain private to their sewer, Admin, and Front Desk; only aggregate availability is shared.
 
@@ -188,3 +188,47 @@ Login can remember a username on the device; passwords are saved through browser
 The login screen links to `/forgot-password`. Email accounts request a Supabase recovery email, which returns through `/auth/callback?next=/reset-password` to the new password form. In Supabase **Authentication ? URL Configuration**, set the production Site URL and allow `https://YOUR-DOMAIN/auth/callback?next=/reset-password`. Allow `http://localhost:3000/auth/callback?next=/reset-password` for local development. Configure Supabase Auth email delivery/SMTP for real employee addresses. Reset links must be opened in the browser that requested them because this app uses PKCE.
 
 Accounts using only employee IDs (`staff.sublime.invalid`) have no deliverable inbox. An admin resets those accounts through **Employees ? Edit employee ? New password**. Existing payroll and application data are unaffected by password recovery.
+
+
+### Separate Cutter and Sewer roles
+
+Apply these migrations in order as separate SQL runs before deploying the updated app:
+
+1. `supabase/migrations/20261111134826_split_cutter_sewer_roles.sql`
+2. `supabase/migrations/20261111134839_cutter_sewer_permissions_and_employees.sql`
+
+The first renames the combined enum role to `sewer` and adds `cutter`. Commit that run before starting the second migration. The second refreshes installed function role checks, separates production update permissions and correction notifications, and assigns intsik and maymay to Cutter. Other former combined-role profiles remain Sewer, including inactive profiles. Work records, assignments, compensation amounts, and payroll history remain available.
+
+Cutters see Cutting and an upcoming queue of jobs still in earlier stages; only cutting tasks are editable. Cutters use the non-sewing attendance/payroll flow. Sewers see Sewing, can claim pieces and record their own handed-off output, and retain sewing pay settings. Admin and Front Desk can assign only active sewers. Earlier production stages must finish before the next stage starts; pending cutting tasks can still be waiting on printing or heat press. Refresh or sign in again after applying both migrations to reload staff roles.
+
+
+### Sewing monitoring and weekly payroll
+
+After both Cutter/Sewer role migrations, apply `supabase/migrations/20261111154048_sewing_encoding_weekly_payroll.sql`. This adds reviewed encoding, regular/promo rate snapshots, discrepancy monitoring, a saved weekly cutoff, computation holds, and immutable change history.
+
+In **Payroll > Sewing rates**, configure each sewer's salary method and regular/promo prices per garment. Missing promo prices are rejected rather than replaced with a guessed rate. Rates are captured at encoding; future rate changes do not reprice submitted or historical output. Fixed-salary employees retain zero additional piece pay.
+
+Sewers submit output from their own handed-off assignments with a work date and rate option. Entries can exceed assignments in the review queue, so encoding errors remain visible. They do not create production completions or payroll earnings until the owner approves them under **Sewing & weekly pay**. The owner can also submit through the `encode_sewing_output` RPC for an assigned employee. Admin correction and void actions require a reason and retain before/after history. Rework remains separate and excluded from piece pay by default.
+
+The monitoring screen shows all-time assigned/encoded totals per team/job and sewer: red for excess, yellow for incomplete, green for balanced. It uses each job item as the reconciliation boundary; similarly named teams are not combined across unrelated orders. Weekly totals use the selected cutoff. Pending values are estimates, not payable salary. Admin can pause/resume computation with a reason without hiding warnings. Incomplete jobs can still pay approved partial output; excess, pending review, or a hold blocks payroll preparation/approval/payment for affected work.
+
+The owner sets **Week starts on** in the monitoring screen, selects a date in the desired week, and prepares payroll after reconciling output. The existing payroll run includes all configured employees for that cutoff; the sewing dashboard shows its sewer portion. Review base pay, deductions, and net pay in **Payroll runs** before approval and payment. Payroll history displays saved snapshots, not recalculated historic rates.
+
+The migration also fixes an existing payroll integration bug: assignment output uses `Sewing batch completed`, while older payroll functions counted only `Sewing completed`. Future runs include and reserve both types of approved output. Already-created payroll periods are not rewritten. Use the existing payroll correction/adjustment process for historical omissions.
+
+
+### Sewer payroll uses assigned pieces
+
+Apply `supabase/migrations/20261111165945_sewer_pay_from_assigned_pieces.sql` after the weekly sewing migration. For new claims and office assignments, pay is **assigned quantity ? the Regular/Promo rate selected at assignment**, using the assignment date in Asia/Manila for the weekly cutoff. Admin approves the resulting `Sewing assigned` record under **Payroll > Work review**. Completion and handoff are production tracking only and cannot add a second payment. Fixed salary settings still produce no additional piece pay.
+
+Historical payroll stays locked. For existing unpaid assignments, Admin can choose the agreed rate and provide a reason using **Use assignment pay** in Sewing. This creates one assignment-pay record for Work review and excludes its unpayrolled completion records from further pay. Existing assignments retain their former basis until explicitly converted. The assignment table identifies new assignment-pay records with their saved rate and amount. New assignment earnings enter the weekly pay summary immediately as awaiting review, even before materials handoff. The shared queue remains visible to other sewers until all pieces are assigned. Claims are atomic and retries do not duplicate assignment pay.
+
+
+### Admin selects payroll promo pricing
+
+Apply `supabase/migrations/20261112012300_admin_payroll_promo_selection.sql` after the assignment-pay migration. Sewers claim quantities only; Regular/Promo selection belongs to Admin under **Payroll > Work review**. The assignment initially shows a provisional regular-rate estimate. Admin selects Regular or Promo for the pay record and approves it; that operation snapshots the currently configured rate per sewer/garment and updates the assignment and work record atomically. A missing promo price prevents approval. Claim/production APIs reject promo selection, and direct assignment-pay approval is blocked until the admin pricing step. Existing approved/paid rates remain unchanged. A claim retry still succeeds if admin has since applied promo pricing.
+
+
+### Admin-selected payroll cutoff
+
+Sewing payroll uses separate **Start date** and **End date** fields under **Payroll > Sewing & payroll**. Admin can select any valid inclusive date range; it is not restricted to a week. All totals, reviewed entries, and payroll preparation use those exact dates. Existing overlap, review, discrepancy, and computation-hold checks still apply. The older migration filename containing `weekly_payroll` is historical; its database functions already accept arbitrary dates. No additional database migration is required for the custom-cutoff screen. The old week-start setting is no longer used.

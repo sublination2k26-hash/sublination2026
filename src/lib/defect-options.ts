@@ -24,7 +24,8 @@ const categoriesByRole: Record<AppRole, string[]> = {
   artist: ["Order information", "Design / artwork", "Missing piece", "Other"],
   printing: ["Printing", "Design / artwork", "Pressing", "Missing piece", "Other"],
   heat_press: ["Pressing", "Printing", "Design / artwork", "Missing piece", "Other"],
-  cutting_sewing: ["Cutting", "Sewing", "Pressing", "Missing piece", "Other"],
+  cutter: ["Cutting", "Pressing", "Missing piece", "Other"],
+  sewer: ["Sewing", "Missing piece", "Other"],
   qc: allDefectCategories.map(item => item.category),
 };
 

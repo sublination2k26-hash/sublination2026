@@ -1,4 +1,4 @@
-export const routingStages = ["P.R.", "P.O.", "COA", "BAC", "GSO", "BADMIN", "GSO BODEGA", "INSPECTOR", "NUMBERING", "CHECKING", "ACCOUNTING", "ASSESSORS", "CHEQUE RELEASE"] as const;
+export const routingStages = ["P.R.", "P.O.", "COA", "BAC", "GSO", "ADMIN", "GSO BODEGA", "INSPECTOR", "NUMBERING", "CHECKING", "ACCOUNTING", "ASSESSORS", "CHEQUE RELEASE"] as const;
 export type RoutingEntry = {
   id: string; document_id: string; stage: string; received_date: string;
   forwarded_date: string | null; handled_by: string; remarks: string; created_at: string;

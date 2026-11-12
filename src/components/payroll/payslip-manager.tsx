@@ -15,7 +15,7 @@ const labels = { basic_pay: "Basic pay", overtime_pay: "Overtime pay", bonus: "O
 type Amounts = Record<typeof fields[number], number>;
 type Slip = Amounts & { id: string; payslip_no: number; employee_name: string; employee_role: string; issue_date: string; period_start: string; period_end: string; net_pay: number };
 type Employee = { id: string; full_name: string; role: string; active: boolean };
-const roles: Record<string, string> = { front_desk: "Front Desk", artist: "Artist", printing: "Printer", heat_press: "Heat press operator", cutting_sewing: "Cutter / Sewer", qc: "Quality control" };
+const roles: Record<string, string> = { front_desk: "Front Desk", artist: "Artist", printing: "Printer", heat_press: "Heat press operator", cutter: "Cutter", sewer: "Sewer", qc: "Quality control" };
 const empty = Object.fromEntries(fields.map(key => [key, 0])) as Amounts;
 const errorMessage = (reason: unknown) => reason && typeof reason === "object" && "message" in reason ? String(reason.message) : "Could not save payslip.";
 
