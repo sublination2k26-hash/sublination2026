@@ -58,3 +58,6 @@
 .sewing-job-list .table-wrap{max-width:100%;overflow:auto}.sewing-job-list .table-wrap table{min-width:620px}
 .sewing-filters input:focus-visible,.sewing-filters select:focus-visible,.sewing-view-tabs button:focus-visible,.sewing-job-list button:focus-visible{outline:2px solid #2563eb;outline-offset:3px}
 @media(max-width:600px){.sewing-filters{padding:14px}.sewing-filter-grid{grid-template-columns:1fr}.sewing-filter-title{flex-wrap:wrap}.sewing-job-list .panel-heading>.filter-button{width:100%}.sewing-view-tabs button{flex:1;padding:9px}.sewing-job-list>.sewing-order{padding:14px}}
+
+.sewing-job-prices tr.sewing-over-produced td { background: #fef2f2; color: #b91c1c; }
+.sewing-job-prices tr.sewing-over-produced small { display: block; color: #b91c1c; font-weight: 600; }
