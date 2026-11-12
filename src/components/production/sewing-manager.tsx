@@ -21,8 +21,11 @@ type Employee = { id: string; full_name: string; role: string; active: boolean }
 type Assignment = { payroll_price_confirmed:boolean; pay_on_assignment:boolean;pricing_mode:string;unit_rate:number; id: string; task_id: string | null; employee_id: string; quantity: number; assigned_by: string; notes: string; created_at: string };
 type SewingEvent = { id: string; assignment_id: string; kind: string; quantity: number; recorded_by: string; notes: string; created_at: string };
 type QueueEntry = { task_id: string; available_quantity: number; claimed_quantity: number };
-type Data = { tasks: Task[]; items: Item[]; orders: Order[]; employees: Employee[]; assignments: Assignment[]; events: SewingEvent[]; queue: QueueEntry[] };
-const empty: Data = { tasks: [], items: [], orders: [], employees: [], assignments: [], events: [], queue: [] };
+type GarmentRate = { employee_id:string; garment:string; unit_rate:number; promo_rate:number|null };
+type Compensation = { employee_id:string; salary_basis:string; piece_rate:number };
+const peso=(value:number)=>`PHP ${Number(value).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+type Data = { prices:GarmentRate[]; compensation:Compensation[]; tasks: Task[]; items: Item[]; orders: Order[]; employees: Employee[]; assignments: Assignment[]; events: SewingEvent[]; queue: QueueEntry[] };
+const empty: Data = { prices:[], compensation:[], tasks: [], items: [], orders: [], employees: [], assignments: [], events: [], queue: [] };
 const stageNames: Record<string, string> = { layout: "Layout", printing: "Printing", heat_press: "Heat Press", cutting: "Cutting", sewing: "Sewing", qc: "QC" };
 const sequence = ["layout", "printing", "heat_press", "cutting", "sewing", "qc"];
 const message = (error: unknown) => error instanceof Error ? error.message : (error as { message?: string })?.message ?? "Could not save. Please try again.";
@@ -70,15 +73,17 @@ export function SewingManager({ userId, role, initialOrderId = "" }: { userId: s
         readAllRows((from, to) => db.from("sewing_events").select("*").order("created_at").order("id").range(from, to)),
         readAllRows((from, to) => db.rpc("get_sewing_queue").order("task_id").range(from, to)),
         readAllRows((from, to) => db.from("customers").select("id,full_name").order("id").range(from, to)),
+        role === "admin" ? readAllRows((from,to)=>db.from("sewing_garment_rates").select("employee_id,garment,unit_rate,promo_rate").order("employee_id").order("garment").range(from,to)) : Promise.resolve([]),
+        role === "admin" ? readAllRows((from,to)=>db.from("employee_compensation").select("employee_id,salary_basis,piece_rate").order("employee_id").range(from,to)) : Promise.resolve([]),
       ]);
       if (attempt !== version.current) return;
-      setData({ tasks: results[0] as Task[], items: results[1] as Item[], orders: results[2] as Order[], employees: results[3] as Employee[], assignments: results[4] as Assignment[], events: results[5] as SewingEvent[], queue: results[6] as QueueEntry[] });
+      setData({ prices:results[8] as GarmentRate[], compensation:results[9] as Compensation[], tasks: results[0] as Task[], items: results[1] as Item[], orders: results[2] as Order[], employees: results[3] as Employee[], assignments: results[4] as Assignment[], events: results[5] as SewingEvent[], queue: results[6] as QueueEntry[] });
       setCustomers(results[7] as { id: string; full_name: string }[]);
       setError("");
     } catch (cause) {
       if (attempt === version.current) setError(`Could not load sewing tracking. Apply the sewer assignments and sewer self-claim migrations if needed. ${message(cause)}`);
     } finally { if (attempt === version.current) setLoading(false); }
-  }, []);
+  }, [role]);
   useEffect(() => { void load(); return () => { version.current++; }; }, [load]);
   useEffect(() => {
     const refresh = () => { if (!saving.current && document.visibilityState === "visible") void load(true); };
@@ -247,12 +252,26 @@ export function SewingManager({ userId, role, initialOrderId = "" }: { userId: s
       const closed = ["cancelled", "released", "ready_for_release"].includes(order.status);
       const availability = data.queue.find(entry => entry.task_id === task.id);
       const available = availability ? Number(availability.available_quantity) : 0;
+      const jobGarment=item.customization?.garment||item.product_name;
+      const ownPromo=garmentRates.find(entry=>entry.garment===jobGarment)?.promo_rate;
       const history = data.events.filter(entry => assignments.some(a => a.id === entry.assignment_id));
       return <section key={task.id} className="panel sewing-order">
         <div className="panel-heading"><div><div className="section-kicker">{order.order_number}{order.notes?.startsWith("[SEWING EXAMPLE]") ? " · EXAMPLE" : ""}</div><h2>{teamName(order)}</h2><p><b>{item.product_name}</b></p><p>{item.quantity} pieces in order · Due {order.due_date || "not set"}</p></div><span className="pill blue">{closed ? order.status.replaceAll("_", " ") : task.status === "completed" ? "Sewing completed" : ready ? "Ready for handoff / sewing" : "Waiting for materials"}</span><button type="button" className="filter-button" aria-expanded={openTask===task.id} aria-controls={`sewing-job-${task.id}`} onClick={()=>setOpenTask(current=>current===task.id?"":task.id)}>{openTask===task.id?"Close job":"Open job"}</button></div>
         <div className="sewing-job-preview"><span>{item.customization?.garment||item.product_name}</span><span>{assigned} assigned</span><span>{handed} handed over</span><span>{completed} completed</span><span>{canAssign?Math.max(0,item.quantity-assigned):available} available</span></div>
         {openTask===task.id&&<div id={`sewing-job-${task.id}`}>
         {role === "sewer" && <p className="sewing-job-rate"><b>Your price per tahi{item.customization?.garment ? ` (${item.customization.garment})` : ""}:</b> {pricePerPiece(item.customization?.garment)}</p>}
+        {role === "sewer" && !ratesLoading && !ratesError && !rate.error && <p className="sewing-job-rate"><b>Your promo price per piece:</b> {ownPromo==null?"Not configured":peso(ownPromo)}. Admin applies the payroll price in Work review.</p>}
+        {role === "admin" && <div className="sewing-job-prices">
+          <h3>Garment prices ? {item.customization?.garment || item.product_name}</h3>
+          <p>Current rates per sewer. Regular is the assignment estimate; admin selects Regular or Promo in Payroll Work review.</p>
+          <div className="table-wrap"><table><thead><tr><th>SEWER</th><th>GARMENT</th><th>REGULAR / PIECE</th><th>PROMO / PIECE</th></tr></thead><tbody>{activeSewerEmployees(data.employees).filter(employee=>!reportSewer||employee.id===reportSewer).map(employee=>{
+            const config=data.compensation.find(c=>c.employee_id===employee.id);
+            const price=data.prices.find(r=>r.employee_id===employee.id&&r.garment===(item.customization?.garment||item.product_name));
+            const regular=price?.unit_rate??config?.piece_rate;
+            return <tr key={employee.id}><td>{employee.full_name}{config?.salary_basis==="fixed"&&<small>Fixed salary; no piece pay</small>}</td><td>{item.customization?.garment || item.product_name}</td><td>{regular==null?"Not configured":peso(regular)}{!price&&config&&<small>Default output rate</small>}</td><td>{price?.promo_rate==null?"Not configured":peso(price.promo_rate)}</td></tr>;
+          })}</tbody></table></div>
+          <p>Set or change prices in <a href="/payroll">Payroll ? Sewing rates</a>. Approved assignments keep their saved price.</p>
+        </div>}
         <div className="sewing-stages">{sequence.map(stage => { const stageTask = data.tasks.find(value => value.order_item_id === task.order_item_id && value.stage === stage); return stageTask ? <span key={stage} className={stageTask.status === "completed" ? "sewing-stage-done" : ""}>{stageNames[stage]} · {stageTask.status.replaceAll("_", " ")}</span> : null; })}</div>
         {availability && <p><b>{available} pieces available to claim</b> · {Number(availability.claimed_quantity)} pieces already reserved across all sewers.</p>}
         {role === "sewer" && !closed && available > 0 && <form className="sewing-form" onSubmit={event => void save(event, "claim", task.id)}><b>Choose pieces for yourself</b><label>Pieces to take<input name="quantity" type="number" min={1} max={available} step={1} required disabled={busy}/></label><label>Bundle / sizes / notes<input name="notes" maxLength={1000} disabled={busy}/></label><button className="primary-button" disabled={busy}>Assign to me</button><small>Pay is based on the quantity you assign to yourself with the price selected by admin in Payroll. Handoff and completion are tracked separately.</small></form>}
@@ -260,7 +279,7 @@ export function SewingManager({ userId, role, initialOrderId = "" }: { userId: s
         <div className="sewing-totals"><span>{canAssign ? "Assigned" : "Assigned to you"}<b>{assigned}</b></span><span>Handed over<b>{handed}</b></span><span>Completed<b>{completed}</b></span><span>Still to sew<b>{assigned - completed}</b></span>{canAssign && <span>Unassigned<b>{item.quantity - assigned}</b></span>}</div>
         {item.customization?.names && <p><b>Sizes / personalization:</b> {item.customization.names}</p>}{item.notes && <p><b>Instructions:</b> {item.notes}</p>}
         {canAssign && !closed && task.status !== "completed" && assigned < item.quantity && <form className="sewing-form" onSubmit={event => void save(event, "assign", task.id)}><label>Sewer<select name="employee" required disabled={busy}><option value="">Choose sewer</option>{activeSewerEmployees(data.employees).map(employee => <option key={employee.id} value={employee.id}>{employee.full_name}</option>)}</select></label><label>Pieces to assign<input name="quantity" type="number" min={1} max={item.quantity - assigned} step={1} required disabled={busy}/></label><label>Bundle / sizes / instructions<input name="notes" maxLength={1000} disabled={busy}/></label><button className="primary-button" disabled={busy}>Assign pieces</button></form>}
-        <div className="table-wrap"><table><thead><tr><th>SEWER</th><th>ASSIGNED / PAY</th><th>HANDED OVER</th><th>COMPLETED</th><th>WAITING FOR HANDOFF</th><th>READY TO SEW</th></tr></thead><tbody>{assignments.filter(a=>!canAssign||!reportSewer||a.employee_id===reportSewer).map(assignment => <tr key={assignment.id}><td><b>{employeeName(assignment.employee_id)}</b><small>Assigned by {employeeName(assignment.assigned_by)}</small><small>{assignment.notes}</small></td><td>{assignment.quantity}{assignment.pay_on_assignment&&<small>{assignment.payroll_price_confirmed?assignment.pricing_mode:"Awaiting admin payroll price (regular estimate)"} ? PHP {Number(assignment.unit_rate).toFixed(2)} / piece<br/>Assignment pay: PHP {(assignment.quantity*Number(assignment.unit_rate)).toFixed(2)}</small>}</td><td>{totals(assignment.id, "handoff")}</td><td>{totals(assignment.id, "completion")}</td><td>{assignment.quantity - totals(assignment.id, "handoff")}</td><td>{totals(assignment.id, "handoff") - totals(assignment.id, "completion")}</td></tr>)}</tbody></table></div>
+        <div className="table-wrap"><table><thead><tr><th>SEWER</th><th>GARMENT</th><th>ASSIGNED PIECES</th><th>PRICE / PIECE</th><th>ASSIGNMENT PAY</th><th>HANDED OVER</th><th>COMPLETED</th><th>WAITING FOR HANDOFF</th><th>READY TO SEW</th></tr></thead><tbody>{assignments.filter(a=>!canAssign||!reportSewer||a.employee_id===reportSewer).map(assignment => <tr key={assignment.id}><td><b>{employeeName(assignment.employee_id)}</b><small>Assigned by {employeeName(assignment.assigned_by)}</small><small>{assignment.notes}</small></td><td>{item.customization?.garment || item.product_name}</td><td>{assignment.quantity}</td><td>{assignment.pay_on_assignment?<>{peso(assignment.unit_rate)}<small>{assignment.payroll_price_confirmed?assignment.pricing_mode:"Regular estimate; awaiting admin price"}</small></>:"Legacy assignment; review pay in Payroll"}</td><td>{assignment.pay_on_assignment?peso(assignment.quantity*Number(assignment.unit_rate)):"See Payroll"}</td><td>{totals(assignment.id, "handoff")}</td><td>{totals(assignment.id, "completion")}</td><td>{assignment.quantity - totals(assignment.id, "handoff")}</td><td>{totals(assignment.id, "handoff") - totals(assignment.id, "completion")}</td></tr>)}</tbody></table></div>
         {assignments.length === 0 && <p>{canAssign ? "No pieces assigned yet. Sewers can choose their own quantities from the shared queue." : "You have not claimed pieces from this order yet."}</p>}
         {!closed && assignments.filter(a=>!canAssign||!reportSewer||a.employee_id===reportSewer).map(assignment => {
           const toHand = assignment.quantity - totals(assignment.id, "handoff");
