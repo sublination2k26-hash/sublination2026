@@ -28,3 +28,5 @@
   .sewing-garment-pay-settings .payroll-table-wrap td::before { content: attr(data-label); font-weight: 600; }
   .sewing-garment-pay-settings .payroll-link { width: 100%; font-size: 14px; }
 }
+
+.garment-price-totals .garment-selected-total { border-color: #93b4ee; background: #eff6ff; color: #1e40af; }

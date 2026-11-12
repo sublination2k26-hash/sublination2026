@@ -1,0 +1,21 @@
+.artist-payroll { min-width: 0; max-width: 100%; }
+.artist-payroll .panel-heading { gap: 12px; flex-wrap: wrap; }
+.artist-payroll p { overflow-wrap: anywhere; }
+.artist-payroll-filters { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; margin: 16px 0; }
+.artist-payroll label { display: flex; flex-direction: column; gap: 6px; min-width: 0; font-size: 14px; }
+.artist-payroll input,.artist-payroll select { box-sizing: border-box; min-width: 0; width: 100%; min-height: 44px; padding: 10px; font-size: 16px; }
+.artist-payroll button { min-height: 44px; white-space: normal; }
+.artist-payroll-price { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; margin: 16px 0; }
+.artist-payroll-price label { flex: 1 1 240px; }
+.artist-payroll .table-wrap { max-width: 100%; overflow: auto; margin: 14px 0; }
+.artist-payroll .table-wrap table { min-width: 740px; width: 100%; }
+.artist-payroll td small { display: block; }
+.artist-payroll input:focus-visible,.artist-payroll select:focus-visible,.artist-payroll button:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+@media(max-width:600px) {
+ .artist-payroll-filters { grid-template-columns: minmax(0,1fr); }
+ .artist-payroll-price { flex-direction: column; align-items: stretch; }
+ .artist-payroll-price label { flex: auto; }
+ .artist-payroll-price button { width: 100%; justify-content: center; }
+ .artist-payroll .searchable-list-toolbar { flex-wrap: wrap; }
+ .artist-payroll .searchable-list-toolbar label { min-width: 0; width: 100%; }
+}

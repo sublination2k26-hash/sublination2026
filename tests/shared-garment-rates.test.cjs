@@ -54,13 +54,17 @@ test('shared garment prices apply across sewers, stay locked after approval, and
  await migration(files.find(name=>name.endsWith('_admin_typed_sewing_promo_price.sql')));
  await migration(files.find(name=>name.endsWith('_admin_custom_sewing_regular_price.sql')));
  await migration(files.find(name=>name.endsWith('_shared_garment_sewer_rates.sql')));
+ await migration(files.find(name=>name.endsWith('_garment_regular_promo_choice.sql')));
  await as(1);
  await db.query("update sewing_shared_garment_rates set unit_rate=45,promo_rate=35 where garment='Jersey'");
  const claim=(employee,qty,rid)=>db.query("select assign_priced_sewing_pieces($1,$2,$3,'regular','', $4)",[sewing,id(employee),qty,id(rid)]);
  await db.query('delete from employee_compensation where employee_id=$1',[id(6)]);
- await claim(5,20,80);await claim(6,30,81);
+ await claim(5,20,80);
+ await db.query("update sewing_shared_garment_rates set selected_mode='promo' where garment='Jersey'");
+ await claim(6,30,81);
+ assert.equal((await db.query('select pricing_mode from sewing_assignments where id=$1',[id(81)])).rows[0].pricing_mode,'promo');
  const records=(await db.query('select id,employee_id,unit_rate from employee_work_records where sewing_assignment_id is not null order by employee_id')).rows;
- assert.equal(Number(records[0].unit_rate),45);assert.equal(Number(records[1].unit_rate),45);
+ assert.equal(Number(records[0].unit_rate),45);assert.equal(Number(records[1].unit_rate),35);
  await assert.rejects(db.query("select approve_sewer_assignment_pay($1,'regular',null,99)",[records[0].id]),/shared garment price/);
  await db.query("select approve_sewer_assignment_pay($1,'regular')",[records[0].id]);
  await db.query("select approve_sewer_assignment_pay($1,'promo')",[records[1].id]);
@@ -72,6 +76,7 @@ test('shared garment prices apply across sewers, stay locked after approval, and
  await as(5);await db.query("update sewing_shared_garment_rates set unit_rate=100");
  assert.equal(Number((await db.query("select unit_rate from sewing_shared_garment_rates where garment='Jersey'")).rows[0].unit_rate),99);
  await as(1);
+ await assert.rejects(db.query("update sewing_shared_garment_rates set promo_rate=null where garment='Jersey'"),/selected_promo_needs_rate/);
  const sample=(await db.query('select create_sewing_example_order() as id')).rows[0].id;
  const sampleAssignments=(await db.query('select a.quantity,a.employee_id,a.pay_on_assignment from sewing_assignments a join production_tasks t on t.id=a.task_id where t.order_id=$1',[sample])).rows;
  assert.equal(sampleAssignments.length,1);assert.equal(sampleAssignments[0].quantity,10);
