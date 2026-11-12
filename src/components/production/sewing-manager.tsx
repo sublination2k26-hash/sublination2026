@@ -10,6 +10,7 @@ import { buildCompleteSewingExcel, buildSewingReport, printSewingReport } from "
 import { garmentCategories } from "@/lib/garment-options";
 import { getOwnSewingRate } from "@/actions/employees";
 import "./sewing.css";
+import {AssignmentGarmentPrices} from "./assignment-garment-prices";
 import { SewingMonitor } from "./sewing-monitor";
 import { manilaToday } from "@/lib/payment-tracking";
 import { SewingEarnings } from "./sewing-earnings";
@@ -261,17 +262,7 @@ export function SewingManager({ userId, role, initialOrderId = "" }: { userId: s
         {openTask===task.id&&<div id={`sewing-job-${task.id}`}>
         {role === "sewer" && <p className="sewing-job-rate"><b>Your price per tahi{item.customization?.garment ? ` (${item.customization.garment})` : ""}:</b> {pricePerPiece(item.customization?.garment)}</p>}
         {role === "sewer" && !ratesLoading && !ratesError && !rate.error && <p className="sewing-job-rate"><b>Your promo price per piece:</b> {ownPromo==null?"Not configured":peso(ownPromo)}. Admin applies the payroll price in Work review.</p>}
-        {role === "admin" && <div className="sewing-job-prices">
-          <h3>Garment prices ? {item.customization?.garment || item.product_name}</h3>
-          <p>Current rates per sewer. Regular is the assignment estimate; admin selects Regular or Promo in Payroll Work review.</p>
-          <div className="table-wrap"><table><thead><tr><th>SEWER</th><th>GARMENT</th><th>REGULAR / PIECE</th><th>PROMO / PIECE</th></tr></thead><tbody>{activeSewerEmployees(data.employees).filter(employee=>!reportSewer||employee.id===reportSewer).map(employee=>{
-            const config=data.compensation.find(c=>c.employee_id===employee.id);
-            const price=data.prices.find(r=>r.employee_id===employee.id&&r.garment===(item.customization?.garment||item.product_name));
-            const regular=price?.unit_rate??config?.piece_rate;
-            return <tr key={employee.id}><td>{employee.full_name}{config?.salary_basis==="fixed"&&<small>Fixed salary; no piece pay</small>}</td><td>{item.customization?.garment || item.product_name}</td><td>{regular==null?"Not configured":peso(regular)}{!price&&config&&<small>Default output rate</small>}</td><td>{price?.promo_rate==null?"Not configured":peso(price.promo_rate)}</td></tr>;
-          })}</tbody></table></div>
-          <p>Set or change prices in <a href="/payroll">Payroll ? Sewing rates</a>. Approved assignments keep their saved price.</p>
-        </div>}
+        {role === "admin" && <AssignmentGarmentPrices garment={jobGarment} employees={activeSewerEmployees(data.employees).filter(employee=>!reportSewer||employee.id===reportSewer)} rates={data.prices} compensations={data.compensation} onSaved={()=>load(true)}/>}
         <div className="sewing-stages">{sequence.map(stage => { const stageTask = data.tasks.find(value => value.order_item_id === task.order_item_id && value.stage === stage); return stageTask ? <span key={stage} className={stageTask.status === "completed" ? "sewing-stage-done" : ""}>{stageNames[stage]} · {stageTask.status.replaceAll("_", " ")}</span> : null; })}</div>
         {availability && <p><b>{available} pieces available to claim</b> · {Number(availability.claimed_quantity)} pieces already reserved across all sewers.</p>}
         {role === "sewer" && !closed && available > 0 && <form className="sewing-form" onSubmit={event => void save(event, "claim", task.id)}><b>Choose pieces for yourself</b><label>Pieces to take<input name="quantity" type="number" min={1} max={available} step={1} required disabled={busy}/></label><label>Bundle / sizes / notes<input name="notes" maxLength={1000} disabled={busy}/></label><button className="primary-button" disabled={busy}>Assign to me</button><small>Pay is based on the quantity you assign to yourself with the price selected by admin in Payroll. Handoff and completion are tracked separately.</small></form>}
