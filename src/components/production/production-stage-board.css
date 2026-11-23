@@ -1,0 +1,48 @@
+.production-stage-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.production-stage-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 7px 12px;
+  border: 1px solid #dfe5ec;
+  border-radius: 999px;
+  background: #fff;
+  color: #475569;
+  font: 600 13px 'DM Sans', sans-serif;
+  cursor: pointer;
+}
+
+.production-stage-pill[aria-pressed="true"] {
+  border-color: #2563eb;
+  background: #e8eff8;
+  color: #1d4ed8;
+}
+
+.production-stage-pill > span {
+  display: inline-grid;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  place-items: center;
+  border-radius: 999px;
+  background: #edf2f7;
+  font-size: 11px;
+}
+
+.production-stage-jobs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
+  gap: 10px;
+}
+
+.production-stage-jobs .job-card {
+  margin-bottom: 0;
+  cursor: pointer;
+}

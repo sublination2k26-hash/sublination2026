@@ -200,6 +200,23 @@ html[data-theme="dark"] .correction-card strong {
   color: #fdba74;
 }
 
+html[data-theme="dark"] .production-stage-pill {
+  border-color: #40536d;
+  background: #111b2a;
+  color: #cbd6e5;
+}
+
+html[data-theme="dark"] .production-stage-pill[aria-pressed="true"] {
+  border-color: #5b91d2;
+  background: #203b5e;
+  color: #c2dcff;
+}
+
+html[data-theme="dark"] .production-stage-pill > span {
+  background: #263a55;
+  color: #e5ecf7;
+}
+
 html[data-theme="dark"] .lane-empty,
 html[data-theme="dark"] .empty-inline,
 html[data-theme="dark"] .metric-foot,
