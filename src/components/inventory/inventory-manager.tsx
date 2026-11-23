@@ -140,7 +140,7 @@ export function InventoryManager({ initialItems, initialMovements }: { initialIt
       <fieldset disabled={busy} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
         <div className="employee-form-fields">
           <label>Material name *<input name="name" required maxLength={120} defaultValue={editing?.name} placeholder="e.g. Heat-resistant tape"/></label>
-          <label>Category *<input name="category" list="inventory-categories" required maxLength={60} defaultValue={editing?.category ?? "Other"}/><datalist id="inventory-categories">{categories.map(value => <option key={value} value={value}/>)}</datalist></label>
+          <label>Category *<select name="category" required defaultValue={editing?.category ?? "Other"}>{editing?.category && !categories.includes(editing.category) && <option value={editing.category}>{editing.category}</option>}{categories.map(value => <option key={value} value={value}>{value}</option>)}</select></label>
           <label>Unit *<input name="unit" required maxLength={30} defaultValue={editing?.unit ?? "pcs"} placeholder="ml, meters, rolls, pcs"/></label>
           {!editing && <label>Starting stock *<input name="quantity" type="number" required min="0" max="999999999.999" step="0.001" defaultValue="0"/></label>}
           <label>Low-stock level *<input name="low_stock_level" type="number" required min="0" max="999999999.999" step="0.001" defaultValue={editing?.low_stock_level ?? 0}/></label>

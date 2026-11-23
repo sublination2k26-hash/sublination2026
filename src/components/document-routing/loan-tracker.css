@@ -22,6 +22,10 @@ html[data-theme="dark"] .loan-overdue { color: #fca5a5; }
 .loan-history { list-style: none; padding: 0; }
 .loan-history li { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--line, #cbd5e1); }
 .loan-history p { overflow-wrap: anywhere; }
+.loan-daily-summary { display: grid; gap: 6px; margin: 14px 0; padding: 14px 16px; border: 1px solid var(--line, #cbd5e1); border-radius: 10px; }
+.loan-daily-summary span, .loan-full-payment p { color: var(--muted, #64748b); font-size: 13px; line-height: 1.5; }
+.loan-full-payment { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 14px 0; }
+.loan-full-payment p { margin: 0; }
 .loan-tracker button { min-height: 44px; }
 @media (max-width: 640px) {
   .loan-tracker .employee-form-fields { grid-template-columns: minmax(0, 1fr); }

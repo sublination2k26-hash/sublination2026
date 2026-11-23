@@ -9,6 +9,8 @@ import "./loan-tracker.css";
 
 const money = (value: number) => value.toLocaleString("en-PH", { style: "currency", currency: "PHP" });
 const errorMessage = (cause: unknown) => cause instanceof Error ? cause.message : typeof cause === "object" && cause && "message" in cause ? String(cause.message) : "Could not save. Please try again.";
+const suppliers = ["MAGNUS", "SUBLI-NATION"] as const;
+const dailyPaymentColumns = "id,loan_id,paid_on,amount,notes,created_at";
 
 export function DocumentRoutingWorkspace({ children }: { children: ReactNode }) {
   const [tab, setTab] = useState("documents");
@@ -48,11 +50,17 @@ function LoanTracker() {
   const detailHeading = useRef<HTMLHeadingElement>(null);
   async function load() {
     const db = createClient();
-    const [records, history] = await Promise.all([
+    const [records, history, dailyHistory] = await Promise.all([
       readAllRows<PersonalLoan>((from, to) => db.from("personal_loans").select(loanColumns).order("created_at", { ascending: false }).order("id").range(from, to)),
       readAllRows<LoanPayment>((from, to) => db.from("personal_loan_payments").select(loanPaymentColumns).order("paid_on").order("id").range(from, to)),
+      readAllRows<{ id: string; loan_id: string; paid_on: string; amount: number; notes: string; created_at: string }>((from, to) => db.from("personal_loan_daily_interest_payments").select(dailyPaymentColumns).order("paid_on").order("id").range(from, to)),
     ]);
-    setLoans(records); setPayments(history); setLoaded(true); setToday(manilaToday());
+    const dailyPayments: LoanPayment[] = dailyHistory.map(payment => ({
+      id: payment.id, loan_id: payment.loan_id, paid_on: payment.paid_on, principal_amount: 0,
+      interest_amount: 0, daily_interest_amount: Number(payment.amount), interest_due_date: null,
+      notes: payment.notes, created_at: payment.created_at,
+    }));
+    setLoans(records); setPayments([...history, ...dailyPayments]); setLoaded(true); setToday(manilaToday());
   }
   useEffect(() => {
     let active = true;
@@ -100,7 +108,8 @@ function LoanTracker() {
     await run(async () => {
       const db = createClient();
       const values = { id, borrower_name: String(data.get("borrower_name")).trim(), principal: Number(data.get("principal")), start_date: start,
-        first_due_date: firstDue, due_day: dueDay, interest_mode: interestMode, interest_rate: Number(data.get("interest_percent")), monthly_interest: monthlyInterestFromPercent(Number(data.get("principal")), Number(data.get("interest_percent"))) };
+        supplier: String(data.get("supplier") ?? ""), first_due_date: firstDue, due_day: dueDay, interest_mode: interestMode,
+        interest_rate: Number(data.get("interest_percent")), monthly_interest: monthlyInterestFromPercent(Number(data.get("principal")), Number(data.get("interest_percent"))) };
       const { data: saved, error: cause } = await db.from("personal_loans").insert(values).select(loanColumns).single();
       if (cause && cause.code !== "23505") throw cause;
       const result = saved ?? (await db.from("personal_loans").select(loanColumns).eq("id", id).single()).data;
@@ -140,12 +149,14 @@ function LoanTracker() {
   }
   async function rename(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!loan) return;
-    const name = String(new FormData(event.currentTarget).get("borrower_name") ?? "").trim();
+    const data = new FormData(event.currentTarget);
+    const name = String(data.get("borrower_name") ?? "").trim();
+    const supplier = String(data.get("supplier") ?? "");
     await run(async () => {
-      const { data, error: cause } = await createClient().from("personal_loans").update({ borrower_name: name }).eq("id", loan.id).select(loanColumns).single();
+      const { data: saved, error: cause } = await createClient().from("personal_loans").update({ borrower_name: name, supplier }).eq("id", loan.id).select(loanColumns).single();
       if (cause) throw cause;
-      setLoans(current => current.map(item => item.id === loan.id ? data as PersonalLoan : item));
-      setNotice("Borrower name updated.");
+      setLoans(current => current.map(item => item.id === loan.id ? saved as PersonalLoan : item));
+      setNotice("Borrower and supplier updated.");
     });
   }
   async function removeLoan() {
@@ -159,26 +170,45 @@ function LoanTracker() {
     });
   }
   async function undo(payment: LoanPayment) {
-    if (!window.confirm(`Remove this payment of ${money(Number(payment.principal_amount) + Number(payment.interest_amount))}? The unpaid balance and reminders will be restored.`)) return;
+    const dailyInterest = Number(payment.daily_interest_amount ?? 0);
+    if (!window.confirm(`Remove this payment of ${money(Number(payment.principal_amount) + Number(payment.interest_amount) + dailyInterest)}? The unpaid balance and reminders will be restored.`)) return;
     await run(async () => {
-      const { data, error: cause } = await createClient().from("personal_loan_payments").delete().eq("id", payment.id).select("id").single();
+      const db = createClient();
+      const result = dailyInterest
+        ? await db.from("personal_loan_daily_interest_payments").delete().eq("id", payment.id).select("id").single()
+        : await db.from("personal_loan_payments").delete().eq("id", payment.id).select("id").single();
+      const { data, error: cause } = result;
       if (cause || !data) throw cause ?? new Error("Payment was not removed. Refresh and retry.");
       const next = payments.filter(item => item.id !== payment.id); setPayments(next);
       if (loan) setInterestDate(loanTracking(loan, next, today).unpaid[0]?.due ?? "");
       setNotice("Payment removed. Balances updated.");
     });
   }
+  async function recordFullPayoff() {
+    if (!loan || !tracking || !window.confirm(`Record full payoff of ${money(tracking.outstandingBalance)} for ${loan.borrower_name} today? This includes remaining principal, scheduled interest and daily interest.`)) return;
+    const id = requestId.current ?? crypto.randomUUID(); requestId.current = id;
+    await run(async () => {
+      const { error: cause } = await createClient().rpc("record_personal_loan_payoff", {
+        p_loan_id: loan.id, p_paid_on: today, p_request_id: id,
+      });
+      if (cause) throw cause;
+      await load();
+      requestId.current = null;
+      setNotice("Full payment recorded. The loan is now settled / Nabayaran nang buo.");
+    });
+  }
   return <section className="employee-manager loan-tracker" aria-label="Personal loan reminders">
     <div className="employee-manager-heading"><div><h2>Mga pautang / Loan reminders</h2><p>Loan deadlines and unpaid balances · Manila date: {today}</p></div>
       <div className="loan-actions"><button type="button" className="secondary-button" disabled={busy} onClick={refresh}>Refresh</button><button type="button" className="secondary-button" disabled={busy || !loaded} onClick={() => { setAdding(true); setSelected(null); requestId.current = null; setError(""); }}>Add borrower</button></div></div>
-    {error && <p className="employee-error" role="alert">{error}{!loaded && " Loan tracking could not load. Retry Refresh; if the tables are missing, apply the loan tracking migrations, including personal_loan_interest_modes."}</p>}
+    {error && <p className="employee-error" role="alert">{error}{!loaded && " Loan tracking could not load. Retry Refresh; if the tables are missing, apply all loan tracking migrations."}</p>}
     {notice && <p className="employee-notice" role="status">{notice}</p>}
     {!loaded && !error && <p role="status">Loading loans…</p>}
-    {loaded && <><div className="loan-reminders" role="status"><b>{overdue.length} overdue · {dueToday.length} due today ? {dueSoon.length} due within 7 days</b><span>Unpaid interest: {money(summaries.filter(item => !item.loan.archived_at).reduce((sum, item) => sum + cents(item.tracking.interestBalance), 0) / 100)}</span></div>
+    {loaded && <><div className="loan-reminders" role="status"><b>{overdue.length} overdue · {dueToday.length} due today ? {dueSoon.length} due within 7 days</b><span>Unpaid interest: {money(summaries.filter(item => !item.loan.archived_at).reduce((sum, item) => sum + cents(item.tracking.interestBalance + item.tracking.dailyInterestBalance), 0) / 100)}</span></div>
     <p className="loan-help">Choose one-time or monthly interest. One-time interest is charged once; monthly interest repeats on the original principal without compounding. Existing loans keep their monthly schedule.</p>
     <div className="employee-form-fields"><label>Borrower name<input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Search name"/></label><label>Show<select value={filter} onChange={event => setFilter(event.target.value)}><option value="active">Active loans</option><option value="overdue">Overdue / Hindi pa bayad</option><option value="archived">Archived / Paid</option></select></label></div>
     {adding && <form className="employee-form" onSubmit={createLoan}><h3>Add borrower / Bagong pautang</h3><fieldset disabled={busy}><div className="employee-form-fields">
       <label>Name / Pangalan<input name="borrower_name" required maxLength={200}/></label>
+      <label>Supplier *<select name="supplier" required defaultValue=""><option value="" disabled>Choose supplier</option>{suppliers.map(value => <option key={value} value={value}>{value}</option>)}</select></label>
       <label>Amount lent / Principal (PHP)<input name="principal" type="number" min="0.01" max="9999999999.99" step="0.01" required value={principalInput} onChange={event => setPrincipalInput(event.target.value)}/></label>
       <label>Start date<input type="date" min="1900-01-01" max={today} required value={start} onChange={event => { const value = event.target.value; setStart(value); if (value) { const day = Number(value.slice(8)); setDueDay(day); setFirstDue(monthlyDue(value, day, 1)); } }}/></label>
       {interestMode === "monthly" && <label>Due day every month (1–31)<input type="number" min="1" max="31" required value={dueDay} onChange={event => { const day = Number(event.target.value); setDueDay(day); if (day >= 1 && day <= 31 && firstDue) setFirstDue(monthlyDue(firstDue, day)); }}/></label>}
@@ -189,15 +219,17 @@ function LoanTracker() {
     </div><p className="loan-help">{interestMode === "one_time" ? "Example: PHP 50,000 at 12% = PHP 6,000 interest once. Total repayment: PHP 56,000, due on the loan due date." : "Example: PHP 50,000 at 12% monthly = PHP 6,000 every month. Interest stays fixed after partial principal payments and stops after full principal repayment. Due days 29-31 use the last day of shorter months."}</p><div className="loan-actions"><button type="submit" className="primary-button" disabled={computedInterest === null || interestPercent === ""}>{busy ? "Saving…" : "Save loan"}</button><button type="button" className="secondary-button" onClick={() => { setAdding(false); requestId.current = null; }}>Cancel</button></div></fieldset></form>}
     <SearchableList recordSelector=":scope > article" className="loan-cards">{shown.map(item => <article className="loan-card" key={item.loan.id}>
       <div className="loan-card-heading"><h3>{item.loan.borrower_name}</h3><span className={`loan-status ${item.tracking.status === "Overdue" ? "loan-overdue" : ""}`}>{item.tracking.status}</span></div>
-      <dl><div><dt>Total outstanding</dt><dd>{money(item.tracking.outstandingBalance)}</dd></div><div><dt>Last payment</dt><dd>{item.tracking.lastPaymentDate ?? "No payments yet"}</dd></div><div><dt>Principal remaining</dt><dd>{money(item.tracking.principalBalance)}</dd></div><div><dt>Unpaid interest</dt><dd>{money(item.tracking.interestBalance)}</dd></div><div><dt>{item.loan.interest_mode === "one_time" ? "One-time interest" : "Monthly interest"}{item.loan.interest_rate != null ? ` (${item.loan.interest_rate}%)` : ""}</dt><dd>{money(Number(item.loan.monthly_interest))}</dd></div><div><dt>Next / oldest unpaid due</dt><dd>{item.tracking.due ?? "—"}</dd></div></dl>
+      <dl><div><dt>Supplier</dt><dd>{item.loan.supplier ?? "Not selected"}</dd></div><div><dt>Total outstanding</dt><dd>{money(item.tracking.outstandingBalance)}</dd></div><div><dt>Last payment</dt><dd>{item.tracking.lastPaymentDate ?? "No payments yet"}</dd></div><div><dt>Principal remaining</dt><dd>{money(item.tracking.principalBalance)}</dd></div><div><dt>Unpaid interest</dt><dd>{money(item.tracking.interestBalance + item.tracking.dailyInterestBalance)}</dd></div><div><dt>{item.loan.interest_mode === "one_time" ? "One-time interest" : "Monthly interest"}{item.loan.interest_rate != null ? ` (${item.loan.interest_rate}%)` : ""}</dt><dd>{money(Number(item.loan.monthly_interest))}</dd></div><div><dt>Next / oldest unpaid due</dt><dd>{item.tracking.due ?? "—"}</dd></div></dl>
       <button type="button" className="secondary-button" disabled={busy} onClick={() => choose(item.loan)}>View / Record payment</button>
     </article>)}</SearchableList>{!shown.length && <p>No loans in this list.</p>}
     {loan && tracking && <section className="loan-detail" aria-label={`Loan details for ${loan.borrower_name}`}>
-      <div className="employee-manager-heading"><div><h3 ref={detailHeading} tabIndex={-1}>{loan.borrower_name}</h3><p>Started {loan.start_date} · Original principal {money(Number(loan.principal))} · Due day {loan.due_day}</p></div><button type="button" className="secondary-button" disabled={busy} onClick={() => { setSelected(null); requestId.current = null; }}>Close details</button></div>
-      <form key={`rename-${loan.id}`} className="employee-form" onSubmit={rename}><label>Borrower name<input name="borrower_name" required maxLength={200} defaultValue={loan.borrower_name} disabled={busy}/></label><button type="submit" className="secondary-button" disabled={busy}>Save name</button></form>
+      <div className="employee-manager-heading"><div><h3 ref={detailHeading} tabIndex={-1}>{loan.borrower_name}</h3><p>{loan.supplier ?? "Supplier not selected"} · Started {loan.start_date} · Original principal {money(Number(loan.principal))} · Due day {loan.due_day}</p></div><button type="button" className="secondary-button" disabled={busy} onClick={() => { setSelected(null); requestId.current = null; }}>Close details</button></div>
+      <form key={`rename-${loan.id}-${loan.supplier ?? "unassigned"}`} className="employee-form" onSubmit={rename}><div className="employee-form-fields"><label>Borrower name<input name="borrower_name" required maxLength={200} defaultValue={loan.borrower_name} disabled={busy}/></label><label>Supplier *<select name="supplier" required defaultValue={loan.supplier ?? ""} disabled={busy}><option value="" disabled>Choose supplier</option>{suppliers.map(value => <option key={value} value={value}>{value}</option>)}</select></label></div><button type="submit" className="secondary-button" disabled={busy}>Save borrower / supplier</button></form>
       <p>To correct loan amounts or terms, delete the incorrect loan and enter it again with the correct details.</p><button type="button" className="secondary-button" disabled={busy} onClick={() => void removeLoan()}>Delete loan and payments</button>
       {tracking.unpaid.length > 0 && <div className="loan-unpaid"><h4>Unpaid interest</h4><ul>{tracking.unpaid.map(item => <li key={item.due}>{item.due}: {money(item.balance)} unpaid{item.due < today ? " — Overdue" : item.due === today ? " — Due today" : " — Upcoming"}</li>)}</ul></div>}
-      <p>Principal balance: <b>{money(tracking.principalBalance)}</b> · Interest due: <b>{money(tracking.interestBalance)}</b></p>
+      <p>Principal balance: <b>{money(tracking.principalBalance)}</b> · Scheduled interest due: <b>{money(tracking.interestBalance)}</b></p>
+      <div className="loan-daily-summary" role="status"><b>Duration: {tracking.duration.months} month{tracking.duration.months === 1 ? "" : "s"} and {tracking.duration.days} day{tracking.duration.days === 1 ? "" : "s"}</b>{loan.interest_mode === "monthly" ? <span>Daily interest: {tracking.dailyDays} extra day{tracking.dailyDays === 1 ? "" : "s"} × {money(Number(loan.monthly_interest) / 30)} (monthly interest ÷ 30) = {money(tracking.dailyInterestBalance)}. Based on original principal.</span> : <span>One-time interest loans do not accrue daily interest.</span>}</div>
+      {!loan.archived_at && !tracking.settled && <div className="loan-full-payment"><button type="button" className="primary-button" disabled={busy} onClick={() => void recordFullPayoff()}>Record full payment · {money(tracking.outstandingBalance)}</button><p>Records all remaining principal and scheduled / daily interest together.</p></div>}
       {!loan.archived_at && !tracking.settled && <form key={loan.id} className="employee-form" onSubmit={recordPayment}><h4>Record payment / Magtala ng bayad</h4><fieldset disabled={busy}><div className="employee-form-fields">
         <label>Date paid<input name="paid_on" type="date" min={loan.start_date} max={today} defaultValue={today} required/></label>
         <label>Principal payment (PHP)<input name="principal_amount" type="number" min="0" max={tracking.principalBalance} step="0.01" defaultValue="0" required/></label>
@@ -206,7 +238,7 @@ function LoanTracker() {
         <label>Notes / Reference<input name="notes" maxLength={1000}/></label>
       </div><p className="loan-help">Select the due date covered by the interest payment. One-time interest can be paid early. For monthly loans, record separate payments for different months. Partial payments are allowed.</p><button className="primary-button" type="submit">{busy ? "Saving…" : "Save payment"}</button></fieldset></form>}
       {(tracking.settled || loan.archived_at) && <button type="button" className="secondary-button" disabled={busy} onClick={archive}>{loan.archived_at ? "Unarchive loan" : "Fully paid — Remove from active list"}</button>}
-      <h4>Payment history</h4><SearchableList recordSelector=":scope > ul > li"><ul className="loan-history">{history.map(payment => <li key={payment.id}><div><b>{payment.paid_on}</b><p>Principal: {money(Number(payment.principal_amount))} · Interest: {money(Number(payment.interest_amount))}{payment.interest_due_date ? ` for ${payment.interest_due_date}` : ""}</p>{payment.notes && <p>{payment.notes}</p>}</div>{!loan.archived_at && <button type="button" className="secondary-button" disabled={busy} onClick={() => undo(payment)}>Undo payment</button>}</li>)}</ul></SearchableList>{!history.length && <p>No payments recorded yet.</p>}
+      <h4>Payment history</h4><SearchableList recordSelector=":scope > ul > li"><ul className="loan-history">{history.map(payment => <li key={payment.id}><div><b>{payment.paid_on}</b>{payment.daily_interest_amount ? <p>Daily interest: {money(Number(payment.daily_interest_amount))}</p> : <p>Principal: {money(Number(payment.principal_amount))} · Interest: {money(Number(payment.interest_amount))}{payment.interest_due_date ? ` for ${payment.interest_due_date}` : ""}</p>}{payment.notes && <p>{payment.notes}</p>}</div>{!loan.archived_at && <button type="button" className="secondary-button" disabled={busy} onClick={() => undo(payment)}>Undo payment</button>}</li>)}</ul></SearchableList>{!history.length && <p>No payments recorded yet.</p>}
     </section>}</>}
   </section>;
 }

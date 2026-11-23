@@ -7,7 +7,7 @@ const exported = {};
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/lib/loan-tracking.ts', 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
 }).outputText, { exports: exported, Date, Intl });
-const { monthlyDue, loanTracking } = exported;
+const { monthlyDue, loanDuration, loanTracking } = exported;
 test('monthly percentage automatically computes peso interest with centavo rounding', () => {
   const calculate = exported.monthlyInterestFromPercent;
   assert.equal(calculate(50000, 12), 6000);
@@ -32,6 +32,25 @@ test('month-end deadlines recover original day after short months, including lea
   assert.equal(monthlyDue('2028-01-31', 31, 1), '2028-02-29');
   assert.equal(monthlyDue('2026-12-31', 31, 1), '2027-01-31');
 });
+test('loan duration and extra monthly days compute simple daily interest at monthly rate divided by thirty', () => {
+  const result = loanTracking(loan, [], '2026-03-05');
+  assert.deepEqual({ ...loanDuration('2026-01-31', '2026-03-05') }, { months: 1, days: 5 });
+  assert.equal(result.dailyDays, 5);
+  assert.equal(result.dailyInterestBalance, 16.67);
+  assert.equal(result.outstandingBalance, 1116.67);
+  assert.equal(loanTracking({ ...loan, interest_mode: 'one_time' }, [], '2026-03-05').dailyInterestBalance, 0);
+});
+test('daily interest and monthly interest together settle through the payoff date', () => {
+  const records = [
+    payment('monthly', '2026-03-05', 0, 100, '2026-02-28'),
+    { ...payment('principal', '2026-03-05', 1000, 0), daily_interest_amount: 16.67 },
+  ];
+  const result = loanTracking(loan, records, '2026-03-05');
+  assert.equal(result.dailyInterestBalance, 0);
+  assert.equal(result.principalBalance, 0);
+  assert.equal(result.interestBalance, 0);
+  assert.equal(result.settled, true);
+});
 test('distinguishes upcoming, due today and overdue; unpaid months carry forward', () => {
   assert.equal(loanTracking(loan, [], '2026-02-27').status, 'Due soon');
   assert.equal(loanTracking(loan, [], '2026-02-28').status, 'Due today');
@@ -55,10 +74,13 @@ test('full principal payoff stops new interest but retains old unpaid interest u
   const records = [payment('1', '2026-03-10', 1000, 0)];
   const result = loanTracking(loan, records, '2026-07-01');
   assert.equal(result.interestBalance, 100);
+  assert.equal(result.dailyInterestBalance, 33.33);
   assert.equal(result.principalBalance, 0);
   assert.equal(result.settled, false);
   assert.equal(result.nextDue, null);
   records.push(payment('2', '2026-07-01', 0, 100, '2026-02-28'));
+  assert.equal(loanTracking(loan, records, '2026-07-01').settled, false);
+  records.push({ ...payment('3', '2026-07-01', 0, 0), daily_interest_amount: 33.33 });
   assert.equal(loanTracking(loan, records, '2026-07-01').status, 'Fully paid');
   assert.equal(loanTracking({ ...loan, archived_at: '2026-07-01' }, records, '2026-07-01').status, 'Archived');
 });
@@ -83,7 +105,7 @@ test('interest-free loans keep principal due without fake overdue interest', () 
   assert.equal(loanTracking(loan, [], '2026-02-21').status, 'Due soon');
   const result = loanTracking(loan, [payment('1', '2026-03-01', 200, 40, '2026-02-28')], '2026-03-02');
   assert.equal(result.lastPaymentDate, '2026-03-01');
-  assert.equal(result.outstandingBalance, 860);
+  assert.equal(result.outstandingBalance, 866.67);
  });
 
 test('one-time interest is charged once, including before its due date and after early payoff', () => {
