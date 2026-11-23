@@ -184,33 +184,6 @@ html[data-theme="dark"] .job-card > div span {
   color: #a3afbf;
 }
 
-html[data-theme="dark"] .production-category-pill {
-  border-color: #40536d;
-  background: #111b2a;
-  color: #cbd6e5;
-}
-
-html[data-theme="dark"] .production-category-pill[aria-pressed="true"] {
-  border-color: #5b91d2;
-  background: #203b5e;
-  color: #c2dcff;
-}
-
-html[data-theme="dark"] .production-product-card {
-  border-color: #34445a;
-  background: #111b2a;
-}
-
-html[data-theme="dark"] .production-product-card h3,
-html[data-theme="dark"] .production-product-card > b {
-  color: #e5ecf7;
-}
-
-html[data-theme="dark"] .production-product-card span,
-html[data-theme="dark"] .production-products-heading > span {
-  color: #a3afbf;
-}
-
 html[data-theme="dark"] .correction-queue {
   border-color: #8b5a24;
   background: #302719;
