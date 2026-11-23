@@ -1,0 +1,80 @@
+.app-alert-dialog {
+  width: min(440px, calc(100vw - 32px));
+  max-height: min(90vh, 500px);
+  margin: auto;
+  padding: 22px;
+  border: 1px solid var(--line, #edf0ed);
+  border-radius: 11px;
+  background: #fff;
+  color: #182b45;
+  box-shadow: 0 18px 60px #122b4d40;
+}
+
+.app-alert-dialog::backdrop {
+  background: #142b4d80;
+  backdrop-filter: blur(2px);
+}
+
+.app-alert-dialog h2 {
+  margin: 0 0 10px;
+  color: #203653;
+  font: 700 20px Manrope, sans-serif;
+}
+
+.app-alert-dialog p {
+  margin: 0;
+  color: #66746b;
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-line;
+}
+
+.app-alert-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  margin-top: 21px;
+}
+
+.app-alert-dialog-actions .primary-button {
+  justify-content: center;
+}
+
+.app-alert-dialog button:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.app-alert-dialog-actions .app-dialog-cancel {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid #e7ebe7;
+  border-radius: 6px;
+  background: #fff;
+  color: #59665e;
+  font: 600 14px "DM Sans", sans-serif;
+}
+
+.app-alert-dialog-actions .primary-button.is-danger {
+  background: #b42318;
+}
+
+html[data-theme="dark"] .app-alert-dialog {
+  border-color: #34445a;
+  background: #182335;
+  color: #e5ecf7;
+}
+
+html[data-theme="dark"] .app-alert-dialog h2 {
+  color: #e5ecf7;
+}
+
+html[data-theme="dark"] .app-alert-dialog p {
+  color: #a3afbf;
+}
+
+html[data-theme="dark"] .app-alert-dialog-actions .app-dialog-cancel {
+  border-color: #34445a;
+  background: #202d40;
+  color: #d3ddeb;
+}

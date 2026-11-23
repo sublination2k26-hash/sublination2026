@@ -4,6 +4,7 @@ import { SearchableList } from "@/components/ui/searchable-list";
 import { FormEvent, useRef, useState } from "react";
 import { Check, Package, Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useAppDialogs } from "@/components/ui/app-dialog-provider";
 import { garmentPricing, pricingServices, serviceProductionStages, type PricingService } from "@/lib/product-pricing";
 import "./product-manager.css";
 
@@ -46,6 +47,7 @@ export function ProductManager({ initialProducts, initialMaterials, initialRecip
   initialMaterials: InventoryMaterial[];
   initialRecipes: MaterialRecipe[];
 }) {
+  const { confirm } = useAppDialogs();
   const [products, setProducts] = useState(initialProducts);
   const [materials] = useState(initialMaterials);
   const [recipes, setRecipes] = useState(initialRecipes);
@@ -138,7 +140,11 @@ export function ProductManager({ initialProducts, initialMaterials, initialRecip
 
   const deleteProduct = async (product: Product) => {
     if (changing.current || saving) return;
-    if (!window.confirm(`Permanently delete ${product.name}? This cannot be undone. Products already used in job orders must be removed from the catalog instead.`)) return;
+    if (!await confirm(`Permanently delete ${product.name}? This cannot be undone. Products already used in job orders must be removed from the catalog instead.`, {
+      title: "Delete product",
+      confirmLabel: "Delete permanently",
+      variant: "danger",
+    })) return;
     changing.current = true;
     setChangingId(product.id);
     setError("");
@@ -161,7 +167,10 @@ export function ProductManager({ initialProducts, initialMaterials, initialRecip
 
   const changeProductStatus = async (product: Product) => {
     if (changing.current || saving) return;
-    if (product.active && !window.confirm(`Remove ${product.name} from the catalog? Existing orders will be kept. You can restore the product later.`)) return;
+    if (product.active && !await confirm(`Remove ${product.name} from the catalog? Existing orders will be kept. You can restore the product later.`, {
+      title: "Remove product",
+      confirmLabel: "Remove",
+    })) return;
     changing.current = true;
     setChangingId(product.id);
     setError("");

@@ -4,6 +4,7 @@ import { SearchableList } from "@/components/ui/searchable-list";
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { ChevronRight, History, FilePenLine, Plus, Printer } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useAppDialogs } from "@/components/ui/app-dialog-provider";
 import { printRoutingDocument } from "@/lib/document-routing-print";
 import { documentColumns, latestStage, latestStageUpdatedAt, pendingRoutingStages, routingStages, type RoutingDocument, type RoutingEntry } from "@/lib/document-routing";
 import "./document-routing.css";
@@ -13,6 +14,7 @@ const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila", 
 const message = (error: unknown) => typeof error === "object" && error !== null && "message" in error ? String(error.message) : "Could not save document.";
 
 export function DocumentRoutingManager({ initialDocuments }: { initialDocuments: RoutingDocument[] }) {
+  const { confirm } = useAppDialogs();
   const [documents, setDocuments] = useState(initialDocuments);
   const [selected, setSelected] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -46,7 +48,11 @@ export function DocumentRoutingManager({ initialDocuments }: { initialDocuments:
     catch (cause) { setError(message(cause)); }
   }
   async function remove(item: RoutingDocument) {
-    if (saving.current || !window.confirm(`Delete ${item.pr_number} and all its routing history permanently?`)) return;
+    if (saving.current || !await confirm(`Delete ${item.pr_number} and all its routing history permanently?`, {
+      title: "Delete routing document",
+      confirmLabel: "Delete permanently",
+      variant: "danger",
+    })) return;
     saving.current = true; setBusy(true); setError(""); setNotice("");
     try {
       const { error: cause } = await createClient().rpc("delete_routing_document", { p_id: item.id });

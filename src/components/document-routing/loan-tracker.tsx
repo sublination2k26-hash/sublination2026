@@ -3,6 +3,7 @@
 import { SearchableList } from "@/components/ui/searchable-list";
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useAppDialogs } from "@/components/ui/app-dialog-provider";
 import { readAllRows } from "@/lib/workspace-loading";
 import { cents, equalInstallmentPreview, firstRepaymentDate, installmentInterestAmount, loanColumns, loanPaymentColumns, loanTracking, manilaToday, monthlyDue, monthlyInterestFromPercent, type LoanPayment, type PersonalLoan, type RepaymentFrequency } from "@/lib/loan-tracking";
 import "./loan-tracker.css";
@@ -26,6 +27,7 @@ export function DocumentRoutingWorkspace({ children }: { children: ReactNode }) 
 }
 
 function LoanTracker() {
+  const { confirm } = useAppDialogs();
   const [loans, setLoans] = useState<PersonalLoan[]>([]);
   const [payments, setPayments] = useState<LoanPayment[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -202,7 +204,11 @@ function LoanTracker() {
     });
   }
   async function removeLoan() {
-    if (!loan || !window.confirm(`Permanently delete the loan for ${loan.borrower_name} and all its payments?`)) return;
+    if (!loan || !await confirm(`Permanently delete the loan for ${loan.borrower_name} and all its payments?`, {
+      title: "Delete loan",
+      confirmLabel: "Delete permanently",
+      variant: "danger",
+    })) return;
     await run(async () => {
       const { error: cause } = await createClient().rpc("delete_personal_loan", { p_id: loan.id });
       if (cause) throw cause;
@@ -213,7 +219,11 @@ function LoanTracker() {
   }
   async function undo(payment: LoanPayment) {
     const dailyInterest = Number(payment.daily_interest_amount ?? 0);
-    if (!window.confirm(`Remove this payment of ${money(Number(payment.principal_amount) + Number(payment.interest_amount) + dailyInterest)}? The unpaid balance and reminders will be restored.`)) return;
+    if (!await confirm(`Remove this payment of ${money(Number(payment.principal_amount) + Number(payment.interest_amount) + dailyInterest)}? The unpaid balance and reminders will be restored.`, {
+      title: "Remove payment",
+      confirmLabel: "Remove payment",
+      variant: "danger",
+    })) return;
     await run(async () => {
       const db = createClient();
       if (payment.source === "installment") {
@@ -234,7 +244,10 @@ function LoanTracker() {
     });
   }
   async function recordFullPayoff() {
-    if (!loan || !tracking || !window.confirm(`Record full payoff of ${money(tracking.outstandingBalance)} for ${loan.borrower_name} today? This includes remaining principal, scheduled interest and daily interest.`)) return;
+    if (!loan || !tracking || !await confirm(`Record full payoff of ${money(tracking.outstandingBalance)} for ${loan.borrower_name} today? This includes remaining principal, scheduled interest and daily interest.`, {
+      title: "Record full payoff",
+      confirmLabel: "Record payoff",
+    })) return;
     const id = requestId.current ?? crypto.randomUUID(); requestId.current = id;
     await run(async () => {
       const { error: cause } = await createClient().rpc(loan.repayment_frequency ? "record_personal_loan_scheduled_payoff" : "record_personal_loan_payoff", {

@@ -18,6 +18,7 @@ import { CustomerPaymentHistory } from "@/components/payments/customer-payment-h
 import { PaymentDueDate } from "@/components/payments/payment-due-date";
 import { customerPaymentSummaries, paymentTracking, paymentRecordGroup, downPayment } from "@/lib/payment-tracking";
 import { BrandLogo } from "@/components/ui/brand-logo";
+import { useAppDialogs } from "@/components/ui/app-dialog-provider";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Activity, ArrowRight, Bell, Check, ChevronDown, CircleDollarSign, Clock3, FileText, Layers3, LogOut, MessageSquare, Package, Pencil, Plus, Search, Shirt, Sparkles, Trash2, Users, WandSparkles, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -132,6 +133,7 @@ async function loadWorkspace() {
   return { account: { full_name: account.full_name, role: account.role as AppRole }, data };
 }
 export default function Home() {
+  const { alert: showAlert, confirm } = useAppDialogs();
   const router = useRouter();
   const workspaceRequest = useRef<{ attempt: number; promise: Promise<Awaited<ReturnType<typeof loadWorkspace>>> } | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
@@ -214,7 +216,11 @@ export default function Home() {
   const deleteOrder=async(order:Order)=>{
     if(!isAdmin)return;
     if(order.status!=="cancelled"){
-      if(!window.confirm(`Cancel ${order.id} for ${order.customer}? The order and its history will stay in the Cancelled folder. You can permanently delete it from there later.`))return;
+      if(!await confirm(`Cancel ${order.id} for ${order.customer}? The order and its history will stay in the Cancelled folder. You can permanently delete it from there later.`, {
+        title: "Cancel order",
+        confirmLabel: "Cancel order",
+        variant: "danger",
+      }))return;
       try{
         const {data,error}=await createClient().from("orders").update({status:"cancelled",updated_at:new Date().toISOString()}).eq("id",order.dbId).select("id").single();
         if(error)throw error;
@@ -225,14 +231,18 @@ export default function Home() {
       }catch(error){reportError(error);}
       return;
     }
-    if(!window.confirm(`Permanently delete cancelled order ${order.id} for ${order.customer}? A backup will be saved before removing the order and its related records.`))return;
+    if(!await confirm(`Permanently delete cancelled order ${order.id} for ${order.customer}? A backup will be saved before removing the order and its related records.`, {
+      title: "Delete cancelled order",
+      confirmLabel: "Delete permanently",
+      variant: "danger",
+    }))return;
     try{
       const {data,error}=await createClient().from("orders").delete().eq("id",order.dbId).select("id");
       if(error)throw error;
       if(!data?.length)throw new Error("Supabase did not delete the order. Check your admin role and migration.");
     }catch(error){
       const detail=error instanceof Error?error.message:typeof error==="object"&&error!==null&&"message" in error?String(error.message):"Supabase could not delete this order.";
-      window.alert(`Order ${order.id} was not deleted.\n\n${detail}`);
+      await showAlert(`Order ${order.id} was not deleted.\n\n${detail}`, { title: "Could not delete order" });
       return;
     }
     setOrders(previous=>previous.filter(item=>item.dbId!==order.dbId));
@@ -241,7 +251,9 @@ export default function Home() {
       await refreshSharedData();
       flash(`Order ${order.id} deleted. Backup saved.`);
     }catch{
-      window.alert(`Order ${order.id} was deleted and backed up, but the workspace could not refresh. Reload the page to update the remaining records.`);
+      await showAlert(`Order ${order.id} was deleted and backed up, but the workspace could not refresh. Reload the page to update the remaining records.`, {
+        title: "Order deleted; refresh required",
+      });
     }
   };
   const addPayment=async(payment:PaymentInput)=>{if(profile?.role!=="admin"&&profile?.role!=="front_desk")throw new Error("Only admin or front desk can record payments.");if(!current)throw new Error("Select an order first.");const {error}=await createClient().rpc("record_customer_payment",{p_order_id:current.dbId,p_amount:payment.amount,p_method:dbMethod[payment.method]??"other",p_kind:payment.kind,p_payment_on:payment.date,p_notes:payment.note,p_request_id:payment.requestId});if(error)throw error;await refreshSharedData();setModal(null);flash("Payment recorded. All earlier down payments remain in the customer history.");};

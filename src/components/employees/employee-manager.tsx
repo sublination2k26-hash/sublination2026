@@ -6,6 +6,7 @@ import { PasswordField } from "@/components/ui/password-field";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Check, LoaderCircle, Pencil, Plus, ShieldCheck, UserRoundPlus, X } from "lucide-react";
 import { deleteEmployee, changeEmployeePassword, createEmployee, listEmployees, updateEmployee, type EmployeeAccount } from "@/actions/employees";
+import { useAppDialogs } from "@/components/ui/app-dialog-provider";
 import type { AppRole } from "@/lib/auth/permissions";
 
 const roleOptions: { id: AppRole; label: string }[] = [
@@ -16,6 +17,7 @@ const roleOptions: { id: AppRole; label: string }[] = [
 ];
 
 export function EmployeeManager() {
+  const { confirm } = useAppDialogs();
   const [employees, setEmployees] = useState<EmployeeAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -54,7 +56,11 @@ export function EmployeeManager() {
   };
   const edit = (employee: EmployeeAccount) => { setPassword(""); setEditing(employee); setName(employee.name); setEmail(employee.loginId); setRole(employee.role); setShowForm(true); };
   const remove = async (employee: EmployeeAccount) => {
-    if (saving || !window.confirm(`Permanently delete ${employee.name}'s login account? They will no longer be able to sign in. Saved work, orders and payroll history will be preserved.`)) return;
+    if (saving || !await confirm(`Permanently delete ${employee.name}'s login account? They will no longer be able to sign in. Saved work, orders and payroll history will be preserved.`, {
+      title: "Delete employee account",
+      confirmLabel: "Delete permanently",
+      variant: "danger",
+    })) return;
     setSaving(true); setError("");
     try {
       const result = await deleteEmployee(employee.id);

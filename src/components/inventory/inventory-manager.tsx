@@ -2,6 +2,7 @@
 
 import { SearchableList } from "@/components/ui/searchable-list";
 import { useRef, useState, type FormEvent } from "react";
+import { useAppDialogs } from "@/components/ui/app-dialog-provider";
 import { createClient } from "@/lib/supabase/client";
 import { stockStatus, type InventoryItem, type InventoryMovement } from "@/lib/inventory";
 import "./inventory-manager.css";
@@ -18,6 +19,7 @@ const localDate = () => {
 type MovementType = "stock_in" | "deduction";
 
 export function InventoryManager({ initialItems, initialMovements }: { initialItems: InventoryItem[]; initialMovements: InventoryMovement[] }) {
+  const { confirm } = useAppDialogs();
   const [items, setItems] = useState(initialItems);
   const [movements, setMovements] = useState(initialMovements);
   const [editing, setEditing] = useState<InventoryItem | null>(null);
@@ -128,7 +130,11 @@ export function InventoryManager({ initialItems, initialMovements }: { initialIt
 
   async function removeMaterial(item: InventoryItem) {
     if (saving.current) return;
-    if (!item.archived_at && !window.confirm(`Remove ${item.name} from active inventory? Materials with movement history or product recipes will be archived to preserve records.`)) return;
+    if (!item.archived_at && !await confirm(`Remove ${item.name} from active inventory? Materials with movement history or product recipes will be archived to preserve records.`, {
+      title: "Remove material",
+      confirmLabel: "Remove",
+      variant: "danger",
+    })) return;
     saving.current = true; setBusy(true); setError(""); setNotice("");
     try {
       const db = createClient();
