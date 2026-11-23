@@ -20,6 +20,12 @@ test('loan ledger: admin-only access, bounded payments, monthly deadlines, settl
   await db.exec(fs.readFileSync('supabase/migrations/20261029192517_document_routing_loans.sql','utf8'));
   await db.exec(fs.readFileSync('supabase/migrations/20261101035952_personal_loan_interest_modes.sql','utf8'));
   await db.exec(fs.readFileSync('supabase/migrations/20261123140000_personal_loan_daily_payoff_suppliers.sql','utf8'));
+  const paymentSelect = fs.readFileSync('src/lib/loan-tracking.ts','utf8').match(/loanPaymentColumns = "([^"]+)"/)[1].split(',');
+  const paymentSchema = await db.query(`select column_name from information_schema.columns
+    where table_schema='public' and table_name='personal_loan_payments'`);
+  const paymentSchemaColumns = new Set(paymentSchema.rows.map(row => row.column_name));
+  assert.ok(paymentSelect.every(column => paymentSchemaColumns.has(column)),
+    'loan payment queries must only select columns in the payment table');
   const asUser = async (n,role='authenticated') => {
     await db.exec('reset role');
     await db.query("select set_config('test.uid',$1,false)", [n ? `00000000-0000-0000-0000-00000000000${n}` : '']);

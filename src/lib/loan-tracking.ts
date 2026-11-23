@@ -10,7 +10,7 @@ export type PersonalLoan = {
   archived_at: string | null; created_at: string;
 };
 export const loanColumns = "id,borrower_name,supplier,principal,start_date,first_due_date,due_day,monthly_interest,interest_mode,interest_rate,archived_at,created_at";
-export const loanPaymentColumns = "id,loan_id,paid_on,principal_amount,interest_amount,daily_interest_amount,interest_due_date,notes,created_at";
+export const loanPaymentColumns = "id,loan_id,paid_on,principal_amount,interest_amount,interest_due_date,notes,created_at";
 export const manilaToday = () => new Intl.DateTimeFormat("en-CA", {
   timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit",
 }).format(new Date());
