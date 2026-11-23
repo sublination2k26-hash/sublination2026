@@ -16,33 +16,3 @@
   outline: 2px solid #2563eb;
   outline-offset: 2px;
 }
-
-.product-category-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 0 0 12px;
-}
-
-.product-category-pill {
-  min-height: 34px;
-  padding: 6px 12px;
-  border: 1px solid var(--line, #e9ede9);
-  border-radius: 999px;
-  background: #fff;
-  color: var(--muted, #768078);
-  font: 500 13px 'DM Sans', sans-serif;
-  cursor: pointer;
-}
-
-.product-category-pill[aria-pressed="true"] {
-  border-color: #2563eb;
-  background: #e8eff8;
-  color: #1d4ed8;
-  font-weight: 700;
-}
-
-.product-category-pill:focus-visible {
-  outline: 2px solid #2563eb;
-  outline-offset: 2px;
-}

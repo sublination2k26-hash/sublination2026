@@ -50,9 +50,6 @@ export function ProductManager({ initialProducts }: { initialProducts: Product[]
   const changing = useRef(false);
   const [showRemoved, setShowRemoved] = useState(false);
   const visibleProducts = products.filter(product => showRemoved || product.active);
-  const [selectedCategory, setSelectedCategory] = useState("");
-  const categories = [...new Set(products.map(product => product.category).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-  const filteredProducts = visibleProducts.filter(product => !selectedCategory || product.category === selectedCategory);
 
   const deleteProduct = async (product: Product) => {
     if (changing.current || saving) return;
@@ -158,14 +155,10 @@ export function ProductManager({ initialProducts }: { initialProducts: Product[]
     </form>
 
     <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, fontSize: 13 }}><input type="checkbox" checked={showRemoved} onChange={event => setShowRemoved(event.target.checked)}/> Show removed products</label>
-    <div className="product-category-filters" role="group" aria-label="Filter products by category">
-      <button type="button" className="product-category-pill" aria-pressed={!selectedCategory} onClick={() => setSelectedCategory("")}>All categories</button>
-      {categories.map(value => <button key={value} type="button" className="product-category-pill" aria-pressed={selectedCategory === value} onClick={() => setSelectedCategory(value)}>{value}</button>)}
-    </div>
     <SearchableList className="employee-table-wrap products-table-scroll" role="region" aria-label="Product catalog, scroll to see more products" tabIndex={0}>
       <table>
         <thead><tr><th>PRODUCT</th><th>CATEGORY</th><th>TYPE</th><th>BASE PRICE</th><th>STATUS</th><th>ACTION</th></tr></thead>
-        <tbody>{filteredProducts.map(product => <tr key={product.id}>
+        <tbody>{visibleProducts.map(product => <tr key={product.id}>
           <td><b>{product.name}</b></td>
           <td>{product.category}</td>
           <td>{pricingServices.find(item => (product.category.startsWith(item.label + " - ") || product.category.startsWith(item.label + " ? ")))?.label ?? typeLabels[product.production_type]}</td>
@@ -174,7 +167,7 @@ export function ProductManager({ initialProducts }: { initialProducts: Product[]
           <td><button type="button" className="filter-button" disabled={saving || changingId !== null} aria-label={`${product.active ? "Remove" : "Restore"} ${product.name}`} onClick={() => void changeProductStatus(product)}>{changingId === product.id ? "Saving…" : product.active ? "Remove" : "Restore"}</button>{" "}<button type="button" className="filter-button" disabled={saving || changingId !== null} aria-label={`Permanently delete ${product.name}`} onClick={() => void deleteProduct(product)}>Delete</button></td>
         </tr>)}</tbody>
       </table>
-      {filteredProducts.length === 0 && <p className="empty-inline"><Package size={16}/> No {showRemoved ? "" : "active "}{selectedCategory ? `products in ${selectedCategory}.` : "products."} { !selectedCategory && <>Add a product above{!showRemoved && " or show removed products to restore one"}.</>}</p>}
+      {visibleProducts.length === 0 && <p className="empty-inline"><Package size={16}/> No {showRemoved ? "" : "active "}products. Add a product above{!showRemoved && " or show removed products to restore one"}.</p>}
     </SearchableList>
   </section>;
 }
