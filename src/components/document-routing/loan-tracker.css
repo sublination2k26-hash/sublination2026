@@ -22,6 +22,12 @@ html[data-theme="dark"] .loan-overdue { color: #fca5a5; }
 .loan-history { list-style: none; padding: 0; }
 .loan-history li { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--line, #cbd5e1); }
 .loan-history p { overflow-wrap: anywhere; }
+.loan-installment-schedule { margin: 16px 0; padding: 14px; border: 1px solid var(--line, #cbd5e1); border-radius: 10px; }
+.loan-installment-schedule h4 { margin: 0 0 10px; }
+.loan-installment-schedule ol { display: grid; gap: 8px; max-height: 320px; overflow-y: auto; margin: 0; padding: 0; list-style: none; }
+.loan-installment-schedule li { padding: 10px 12px; border: 1px solid var(--line, #cbd5e1); border-radius: 8px; }
+.loan-installment-schedule li > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+.loan-installment-schedule li > p { margin: 6px 0 0; color: var(--muted, #64748b); font-size: 13px; }
 .loan-daily-summary { display: grid; gap: 6px; margin: 14px 0; padding: 14px 16px; border: 1px solid var(--line, #cbd5e1); border-radius: 10px; }
 .loan-daily-summary span, .loan-full-payment p { color: var(--muted, #64748b); font-size: 13px; line-height: 1.5; }
 .loan-full-payment { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 14px 0; }

@@ -20,6 +20,7 @@ test('loan ledger: admin-only access, bounded payments, monthly deadlines, settl
   await db.exec(fs.readFileSync('supabase/migrations/20261029192517_document_routing_loans.sql','utf8'));
   await db.exec(fs.readFileSync('supabase/migrations/20261101035952_personal_loan_interest_modes.sql','utf8'));
   await db.exec(fs.readFileSync('supabase/migrations/20261123140000_personal_loan_daily_payoff_suppliers.sql','utf8'));
+  await db.exec(fs.readFileSync('supabase/migrations/20261123150000_personal_loan_repayment_schedules.sql','utf8'));
   const paymentSelect = fs.readFileSync('src/lib/loan-tracking.ts','utf8').match(/loanPaymentColumns = "([^"]+)"/)[1].split(',');
   const paymentSchema = await db.query(`select column_name from information_schema.columns
     where table_schema='public' and table_name='personal_loan_payments'`);
@@ -91,11 +92,38 @@ test('loan ledger: admin-only access, bounded payments, monthly deadlines, settl
   const supplierLoan=(await db.query(`insert into personal_loans(borrower_name,principal,start_date,first_due_date,due_day,monthly_interest,interest_mode,interest_rate,supplier)
     values ('Subli supplier',1000,'2026-01-01','2026-02-01',1,100,'one_time',10,'SUBLI-NATION') returning id,supplier`)).rows[0];
   assert.equal(supplierLoan.supplier,'SUBLI-NATION');
+  const scheduledLoan=(await db.query(`insert into personal_loans(
+    borrower_name,principal,start_date,first_due_date,due_day,monthly_interest,interest_mode,interest_rate,
+    repayment_frequency,installment_count
+  ) values ('Daily installments',1000,'2026-01-01','2026-01-02',2,30,'monthly',3,'daily',3) returning id`)).rows[0];
+  assert.equal(new Date((await db.query(`select personal_loan_installment_due('2026-01-02',2,'daily',2) as due`)).rows[0].due).toISOString().slice(0,10),'2026-01-04');
+  assert.equal(Number((await db.query(`select personal_loan_installment_interest(30,'weekly') as amount`)).rows[0].amount),7);
+  assert.equal(new Date((await db.query(`select personal_loan_installment_due('2026-02-28',31,'monthly',1) as due`)).rows[0].due).toISOString().slice(0,10),'2026-03-31');
+  const firstInstallment='00000000-0000-0000-0000-000000000097';
+  await db.query(`select record_personal_loan_installment_payment(
+    $1,'2026-01-02','2026-01-02',333.34,1,'First daily installment',$2
+  )`,[scheduledLoan.id,firstInstallment]);
+  await assert.rejects(db.query(`select record_personal_loan_installment_payment(
+    $1,'2026-01-02','2026-01-02',1,0,'Excess principal','00000000-0000-0000-0000-000000000096'
+  )`,[scheduledLoan.id]),/unpaid principal/);
+  const scheduledPayoff='00000000-0000-0000-0000-000000000095';
+  await db.query("select record_personal_loan_scheduled_payoff($1,'2026-01-05',$2)",[scheduledLoan.id,scheduledPayoff]);
+  await db.query("select record_personal_loan_scheduled_payoff($1,'2026-01-05',$2)",[scheduledLoan.id,scheduledPayoff]);
+  const scheduledTotals=(await db.query(`select sum(principal_amount) as principal,sum(interest_amount) as interest,
+    sum(daily_interest_amount) as daily,count(*)::integer as count
+    from personal_loan_installment_payments where loan_id=$1`,[scheduledLoan.id])).rows[0];
+  assert.equal(Number(scheduledTotals.principal),1000);
+  assert.equal(Number(scheduledTotals.interest),3);
+  assert.equal(Number(scheduledTotals.daily),1);
+  assert.equal(scheduledTotals.count,5,'retrying a scheduled full payoff does not duplicate ledger entries');
+  await db.query('update personal_loans set archived_at=now() where id=$1',[scheduledLoan.id]);
+  await assert.rejects(db.query('delete from personal_loan_installment_payments where loan_id=$1',[scheduledLoan.id]),/permission denied/);
   for (const user of [2,3,null]) {
     await asUser(user);
     assert.equal((await db.query('select * from personal_loans')).rows.length,0);
     assert.equal((await db.query('select * from personal_loan_payments')).rows.length,0);
     assert.equal((await db.query('select * from personal_loan_daily_interest_payments')).rows.length,0);
+    assert.equal((await db.query('select * from personal_loan_installment_payments')).rows.length,0);
     await assert.rejects(db.exec(`insert into personal_loans(borrower_name,principal,start_date,first_due_date,due_day,monthly_interest)
       values ('Blocked',100,'2026-01-01','2026-02-01',1,10)`),/row-level security/);
     await assert.rejects(insert(1,0),/Loan not found|row-level security/);
@@ -105,4 +133,5 @@ test('loan ledger: admin-only access, bounded payments, monthly deadlines, settl
   await asUser(null,'anon');
   await assert.rejects(db.query('select * from personal_loans'),/permission denied/);
   await assert.rejects(db.query('select * from personal_loan_payments'),/permission denied/);
+  await assert.rejects(db.query('select * from personal_loan_installment_payments'),/permission denied/);
 });

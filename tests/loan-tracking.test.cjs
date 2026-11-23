@@ -7,7 +7,7 @@ const exported = {};
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/lib/loan-tracking.ts', 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
 }).outputText, { exports: exported, Date, Intl });
-const { monthlyDue, loanDuration, loanTracking } = exported;
+const { monthlyDue, firstRepaymentDate, repaymentDueDate, equalInstallmentPreview, loanInstallmentPlan, loanDuration, loanTracking } = exported;
 test('monthly percentage automatically computes peso interest with centavo rounding', () => {
   const calculate = exported.monthlyInterestFromPercent;
   assert.equal(calculate(50000, 12), 6000);
@@ -31,6 +31,53 @@ test('month-end deadlines recover original day after short months, including lea
   assert.equal(monthlyDue('2026-02-28', 31, 1), '2026-03-31');
   assert.equal(monthlyDue('2028-01-31', 31, 1), '2028-02-29');
   assert.equal(monthlyDue('2026-12-31', 31, 1), '2027-01-31');
+});
+test('daily, weekly and monthly repayment schedules preserve the first date and interval', () => {
+  assert.equal(firstRepaymentDate('2026-01-31', 31, 'daily'), '2026-02-01');
+  assert.equal(firstRepaymentDate('2026-01-31', 31, 'weekly'), '2026-02-07');
+  assert.equal(firstRepaymentDate('2026-01-31', 31, 'monthly'), '2026-02-28');
+  assert.equal(repaymentDueDate('2026-02-28', 31, 'weekly', 2), '2026-03-14');
+  assert.equal(repaymentDueDate('2026-01-31', 31, 'monthly', 1), '2026-02-28');
+});
+test('equal installment preview prorates the monthly interest and adjusts centavos', () => {
+  assert.deepEqual({ ...equalInstallmentPreview(1000, 30, 'daily', 3) }, { interest: 1, first: 334.34, last: 334.33 });
+  assert.deepEqual({ ...equalInstallmentPreview(1000, 30, 'weekly', 3) }, { interest: 7, first: 340.34, last: 340.33 });
+  assert.deepEqual({ ...equalInstallmentPreview(1000, 30, 'monthly', 3) }, { interest: 30, first: 363.34, last: 363.33 });
+  assert.throws(() => equalInstallmentPreview(1000, 30, 'weekly', 0), /installments/);
+});
+test('scheduled loan tracking reports recurring due dates and remaining installment balances', () => {
+  const scheduled = { ...loan, principal: 1000, monthly_interest: 30, first_due_date: '2026-02-07',
+    due_day: 7, repayment_frequency: 'weekly', installment_count: 3, interest_mode: 'monthly' };
+  const plan = loanInstallmentPlan(scheduled);
+  assert.deepEqual([...plan.map(item => item.due)], ['2026-02-07', '2026-02-14', '2026-02-21']);
+  const before = loanTracking(scheduled, [], '2026-02-07');
+  assert.equal(before.installments.length, 3);
+  assert.equal(before.installments[0].totalDue, 340.34);
+  assert.equal(before.interestBalance, 7);
+  const paid = loanTracking(scheduled, [
+    { ...payment('first', '2026-02-07', 333.34, 7, '2026-02-07'), source: 'installment' },
+  ], '2026-02-07');
+  assert.equal(paid.principalBalance, 666.66);
+  assert.equal(paid.interestBalance, 0);
+  assert.equal(paid.installments[0].balance, 0);
+  assert.equal(paid.due, '2026-02-14');
+});
+test('scheduled full payoff settles accrued installments and prorated daily interest without future charges', () => {
+  const scheduled = { ...loan, principal: 1000, monthly_interest: 30, first_due_date: '2026-02-07',
+    due_day: 7, repayment_frequency: 'weekly', installment_count: 3, interest_mode: 'monthly' };
+  const payments = [
+    { ...payment('first', '2026-02-07', 333.34, 7, '2026-02-07'), source: 'installment' },
+    { ...payment('next-interest', '2026-02-17', 0, 7, '2026-02-14'), source: 'installment' },
+    { ...payment('payoff-principal', '2026-02-17', 666.66), source: 'installment' },
+    { ...payment('daily', '2026-02-17', 0, 0), daily_interest_amount: 3, source: 'installment' },
+  ];
+  const result = loanTracking(scheduled, payments, '2026-02-17');
+  assert.equal(result.principalBalance, 0);
+  assert.equal(result.interestBalance, 0);
+  assert.equal(result.dailyInterestBalance, 0);
+  assert.equal(result.outstandingBalance, 0);
+  assert.equal(result.settled, true);
+  assert.equal(result.installments[2].balance, 0);
 });
 test('loan duration and extra monthly days compute simple daily interest at monthly rate divided by thirty', () => {
   const result = loanTracking(loan, [], '2026-03-05');
