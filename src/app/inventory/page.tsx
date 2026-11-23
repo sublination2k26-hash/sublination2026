@@ -11,13 +11,13 @@ export default async function InventoryPage() {
   if (!profile?.active || profile.role !== "admin") redirect("/dashboard");
   const [inventory, movements] = await Promise.all([
     supabase.from("inventory_materials")
-      .select("id,name,category,unit,quantity,low_stock_level,updated_at").order("category").order("name"),
+      .select("id,name,category,unit,quantity,low_stock_level,updated_at,archived_at").order("category").order("name"),
     supabase.from("inventory_movements")
-      .select("id,material_id,movement_type,quantity,movement_date,created_at").order("movement_date", { ascending: false }).order("created_at", { ascending: false }),
+      .select("id,material_id,movement_type,quantity,movement_date,created_at,source,order_number").order("movement_date", { ascending: false }).order("created_at", { ascending: false }),
   ]);
   const error = inventory.error ?? movements.error;
-  return <SectionPage area="Inventory" title="Materials inventory" description="Track stock-ins and deductions with their dates, alongside your current stock.">
-    {error ? <p className="employee-error" role="alert">Could not load inventory. Make sure the materials inventory migrations have been applied. {error.message}</p>
+  return <SectionPage area="Inventory" title="Materials inventory" description="Track dated stock movements. Configured product recipes deduct materials when production begins.">
+    {error ? <p className="employee-error" role="alert">Could not load inventory. Make sure the inventory movement and order-deduction migrations have been applied. {error.message}</p>
       : <InventoryManager initialItems={inventory.data ?? []} initialMovements={movements.data ?? []}/>}
   </SectionPage>;
 }

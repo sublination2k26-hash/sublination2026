@@ -6,6 +6,7 @@ export type InventoryItem = {
   quantity: number;
   low_stock_level: number;
   updated_at: string;
+  archived_at: string | null;
 };
 
 export type InventoryMovement = {
@@ -15,6 +16,8 @@ export type InventoryMovement = {
   quantity: number;
   movement_date: string;
   created_at: string;
+  source: "manual" | "order_deduction" | "order_reversal";
+  order_number: string | null;
 };
 
 export function stockStatus(item: Pick<InventoryItem, "quantity" | "low_stock_level">) {

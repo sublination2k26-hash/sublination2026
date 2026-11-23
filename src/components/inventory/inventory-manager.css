@@ -24,6 +24,19 @@
   gap: 6px;
 }
 
+.employee-form-fields .inventory-archived-filter {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  align-self: end;
+  gap: 8px;
+}
+
+.inventory-archived-filter input {
+  width: auto;
+  height: auto;
+}
+
 .inventory-history-heading {
   display: flex;
   align-items: baseline;

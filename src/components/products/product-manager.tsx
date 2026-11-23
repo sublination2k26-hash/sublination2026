@@ -17,14 +17,38 @@ type Product = {
   created_at: string;
 };
 
+type InventoryMaterial = {
+  id: string;
+  name: string;
+  unit: string;
+  archived_at: string | null;
+};
+
+type MaterialRecipe = {
+  product_id: string;
+  material_id: string;
+  quantity_per_unit: number;
+};
+
+type RecipeLine = {
+  material_id: string;
+  quantity_per_unit: string;
+};
+
 const typeLabels: Record<Product["production_type"], string> = {
   full_garment: "Full garment",
   print_only: "Print only",
   service: "Other service",
 };
 
-export function ProductManager({ initialProducts }: { initialProducts: Product[] }) {
+export function ProductManager({ initialProducts, initialMaterials, initialRecipes }: {
+  initialProducts: Product[];
+  initialMaterials: InventoryMaterial[];
+  initialRecipes: MaterialRecipe[];
+}) {
   const [products, setProducts] = useState(initialProducts);
+  const [materials] = useState(initialMaterials);
+  const [recipes, setRecipes] = useState(initialRecipes);
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
   const [service, setService] = useState<PricingService>("full_garment");
@@ -49,7 +73,68 @@ export function ProductManager({ initialProducts }: { initialProducts: Product[]
   const [changingId, setChangingId] = useState<string | null>(null);
   const changing = useRef(false);
   const [showRemoved, setShowRemoved] = useState(false);
+  const [recipeProduct, setRecipeProduct] = useState<Product | null>(null);
+  const [recipeLines, setRecipeLines] = useState<RecipeLine[]>([]);
+  const [recipeSaving, setRecipeSaving] = useState(false);
   const visibleProducts = products.filter(product => showRemoved || product.active);
+  const activeMaterials = materials.filter(material => !material.archived_at);
+
+  const editRecipe = (product: Product) => {
+    setRecipeProduct(product);
+    setRecipeLines(recipes.filter(recipe => recipe.product_id === product.id)
+      .map(recipe => ({ material_id: recipe.material_id, quantity_per_unit: String(recipe.quantity_per_unit) })));
+    setError("");
+    setNotice("");
+  };
+
+  const addRecipeLine = () => {
+    const available = activeMaterials.find(material => !recipeLines.some(line => line.material_id === material.id));
+    if (!available) {
+      setError("All active materials are already in this recipe. Add or restore a material in Inventory first.");
+      return;
+    }
+    setError("");
+    setRecipeLines(current => [...current, { material_id: available.id, quantity_per_unit: "1" }]);
+  };
+
+  const saveRecipe = async () => {
+    if (!recipeProduct || recipeSaving || changing.current || saving) return;
+    const validLines = recipeLines.map(line => ({
+      material_id: line.material_id,
+      quantity_per_unit: Number(line.quantity_per_unit),
+    }));
+    if (validLines.some(line => !line.material_id || !Number.isFinite(line.quantity_per_unit)
+      || line.quantity_per_unit <= 0 || line.quantity_per_unit > 999999999.999
+      || Math.round(line.quantity_per_unit * 1000) / 1000 !== line.quantity_per_unit)
+      || new Set(validLines.map(line => line.material_id)).size !== validLines.length
+      || validLines.some(line => !activeMaterials.some(material => material.id === line.material_id))) {
+      setError("Choose a unique active material and enter a positive quantity per product (up to 3 decimal places).");
+      return;
+    }
+    setRecipeSaving(true);
+    setError("");
+    setNotice("");
+    try {
+      const { error: saveError } = await createClient().rpc("save_product_material_recipe", {
+        p_product_id: recipeProduct.id,
+        p_recipe: validLines,
+      });
+      if (saveError) throw saveError;
+      setRecipes(current => [
+        ...current.filter(recipe => recipe.product_id !== recipeProduct.id),
+        ...validLines.map(line => ({
+          product_id: recipeProduct.id,
+          material_id: line.material_id,
+          quantity_per_unit: line.quantity_per_unit,
+        })),
+      ]);
+      setNotice(`Material recipe saved for ${recipeProduct.name}.`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not save this material recipe.");
+    } finally {
+      setRecipeSaving(false);
+    }
+  };
 
   const deleteProduct = async (product: Product) => {
     if (changing.current || saving) return;
@@ -154,17 +239,41 @@ export function ProductManager({ initialProducts }: { initialProducts: Product[]
       <div className="form-actions"><button className="primary-button" type="submit" disabled={saving || changingId !== null}><Plus size={15}/>{saving ? "Saving…" : "Add product"}</button></div>
     </form>
 
+    {recipeProduct && <section className="employee-form product-recipe-editor" aria-label={`Material recipe for ${recipeProduct.name}`}>
+      <div className="employee-form-title">Materials per {recipeProduct.name}</div>
+      <p className="employee-form-note">Set how much of each material is used for one ordered product. These quantities are deducted when production begins. Products with no recipe do not deduct inventory automatically.</p>
+      <fieldset disabled={recipeSaving} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+        {recipeLines.map((line, index) => {
+          const currentMaterial = materials.find(material => material.id === line.material_id);
+          return <div className="employee-form-fields product-recipe-line" key={`${recipeProduct.id}-${index}`}>
+            <label>Material<select required value={line.material_id} onChange={event => setRecipeLines(current => current.map((entry, row) => row === index ? { ...entry, material_id: event.target.value } : entry))}>
+              {materials.filter(material => !material.archived_at || material.id === line.material_id).map(material => <option key={material.id} value={material.id} disabled={recipeLines.some((entry, row) => row !== index && entry.material_id === material.id)}>{material.name}{material.archived_at ? " (archived - replace this material)" : ""}</option>)}
+              {!currentMaterial && <option value="" disabled>Choose an active material</option>}
+            </select></label>
+            <label>Quantity per product ({currentMaterial?.unit ?? "unit"})<input type="number" min="0.001" max="999999999.999" step="0.001" required value={line.quantity_per_unit} onChange={event => setRecipeLines(current => current.map((entry, row) => row === index ? { ...entry, quantity_per_unit: event.target.value } : entry))}/></label>
+            <button type="button" className="secondary-button" onClick={() => setRecipeLines(current => current.filter((_, row) => row !== index))}>Remove</button>
+          </div>;
+        })}
+        <div className="form-actions">
+          <button type="button" className="secondary-button" onClick={addRecipeLine} disabled={recipeLines.length >= 50}>Add material</button>
+          <button type="button" className="primary-button" onClick={() => void saveRecipe()}>{recipeSaving ? "Saving…" : "Save recipe"}</button>
+          <button type="button" className="secondary-button" onClick={() => setRecipeProduct(null)} disabled={recipeSaving}>Close</button>
+        </div>
+      </fieldset>
+    </section>}
+
     <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, fontSize: 13 }}><input type="checkbox" checked={showRemoved} onChange={event => setShowRemoved(event.target.checked)}/> Show removed products</label>
     <SearchableList className="employee-table-wrap products-table-scroll" role="region" aria-label="Product catalog, scroll to see more products" tabIndex={0}>
       <table>
-        <thead><tr><th>PRODUCT</th><th>CATEGORY</th><th>TYPE</th><th>BASE PRICE</th><th>STATUS</th><th>ACTION</th></tr></thead>
+        <thead><tr><th>PRODUCT</th><th>CATEGORY</th><th>TYPE</th><th>BASE PRICE</th><th>STATUS</th><th>MATERIALS</th><th>ACTION</th></tr></thead>
         <tbody>{visibleProducts.map(product => <tr key={product.id}>
           <td><b>{product.name}</b></td>
           <td>{product.category}</td>
           <td>{pricingServices.find(item => (product.category.startsWith(item.label + " - ") || product.category.startsWith(item.label + " ? ")))?.label ?? typeLabels[product.production_type]}</td>
           <td>{Number(product.base_price).toLocaleString("en-PH", { style: "currency", currency: "PHP" })}</td>
           <td>{product.active ? "Active" : "Removed"}</td>
-          <td><button type="button" className="filter-button" disabled={saving || changingId !== null} aria-label={`${product.active ? "Remove" : "Restore"} ${product.name}`} onClick={() => void changeProductStatus(product)}>{changingId === product.id ? "Saving…" : product.active ? "Remove" : "Restore"}</button>{" "}<button type="button" className="filter-button" disabled={saving || changingId !== null} aria-label={`Permanently delete ${product.name}`} onClick={() => void deleteProduct(product)}>Delete</button></td>
+          <td><button type="button" className="filter-button" onClick={() => editRecipe(product)}>{recipes.some(recipe => recipe.product_id === product.id) ? `${recipes.filter(recipe => recipe.product_id === product.id).length} materials · Edit` : "Set recipe"}</button></td>
+          <td><button type="button" className="filter-button" disabled={saving || changingId !== null || recipeSaving} aria-label={`${product.active ? "Remove" : "Restore"} ${product.name}`} onClick={() => void changeProductStatus(product)}>{changingId === product.id ? "Saving…" : product.active ? "Remove" : "Restore"}</button>{" "}<button type="button" className="filter-button" disabled={saving || changingId !== null || recipeSaving} aria-label={`Permanently delete ${product.name}`} onClick={() => void deleteProduct(product)}>Delete</button></td>
         </tr>)}</tbody>
       </table>
       {visibleProducts.length === 0 && <p className="empty-inline"><Package size={16}/> No {showRemoved ? "" : "active "}products. Add a product above{!showRemoved && " or show removed products to restore one"}.</p>}

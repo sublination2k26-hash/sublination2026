@@ -16,3 +16,19 @@
   outline: 2px solid #2563eb;
   outline-offset: 2px;
 }
+
+.product-recipe-editor {
+  margin-top: 20px;
+}
+
+.employee-form-fields.product-recipe-line {
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) auto;
+  align-items: end;
+  margin-bottom: 10px;
+}
+
+@media (max-width: 700px) {
+  .employee-form-fields.product-recipe-line {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

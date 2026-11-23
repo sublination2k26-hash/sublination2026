@@ -11,12 +11,20 @@ export default async function ProductsPage() {
   const { data: profile } = await supabase.from("profiles").select("role,active").eq("id", user.id).maybeSingle();
   if (!profile?.active || profile.role !== "admin") redirect("/dashboard");
 
-  const { data, error } = await supabase.from("products")
-    .select("id,name,category,production_type,base_price,active,created_at")
-    .order("created_at", { ascending: false });
+  const [products, materials, recipes] = await Promise.all([
+    supabase.from("products")
+      .select("id,name,category,production_type,base_price,active,created_at")
+      .order("created_at", { ascending: false }),
+    supabase.from("inventory_materials")
+      .select("id,name,unit,archived_at")
+      .order("name"),
+    supabase.from("product_material_recipes")
+      .select("product_id,material_id,quantity_per_unit"),
+  ]);
+  const error = products.error ?? materials.error ?? recipes.error;
   return <SectionPage area="Products" title="Products & pricing" description="Add products and services to use when creating job orders.">
     {error
-      ? <p className="employee-error" role="alert">Could not load products: {error.message}</p>
-      : <ProductManager initialProducts={data ?? []} />}
+      ? <p className="employee-error" role="alert">Could not load products and material recipes. Make sure the inventory order-deduction migration has been applied. {error.message}</p>
+      : <ProductManager initialProducts={products.data ?? []} initialMaterials={materials.data ?? []} initialRecipes={recipes.data ?? []} />}
   </SectionPage>;
 }

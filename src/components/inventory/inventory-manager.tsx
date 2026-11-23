@@ -6,8 +6,8 @@ import { createClient } from "@/lib/supabase/client";
 import { stockStatus, type InventoryItem, type InventoryMovement } from "@/lib/inventory";
 import "./inventory-manager.css";
 
-const columns = "id,name,category,unit,quantity,low_stock_level,updated_at";
-const movementColumns = "id,material_id,movement_type,quantity,movement_date,created_at";
+const columns = "id,name,category,unit,quantity,low_stock_level,updated_at,archived_at";
+const movementColumns = "id,material_id,movement_type,quantity,movement_date,created_at,source,order_number";
 const categories = ["Ink", "Paper", "Fabric", "Cleaning", "Sewing", "Tools", "Other"];
 const message = (error: unknown) => typeof error === "object" && error !== null && "message" in error ? String(error.message) : "Could not save material.";
 const localDate = () => {
@@ -26,6 +26,7 @@ export function InventoryManager({ initialItems, initialMovements }: { initialIt
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
   const [lowOnly, setLowOnly] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const [busy, setBusy] = useState(false);
   const saving = useRef(false);
   const [error, setError] = useState("");
@@ -125,14 +126,44 @@ export function InventoryManager({ initialItems, initialMovements }: { initialIt
     finally { saving.current = false; setBusy(false); }
   }
 
-  const shown = items.filter(item => (!category || item.category === category)
-    && (!lowOnly || stockStatus(item) !== "In stock")
+  async function removeMaterial(item: InventoryItem) {
+    if (saving.current) return;
+    if (!item.archived_at && !window.confirm(`Remove ${item.name} from active inventory? Materials with movement history or product recipes will be archived to preserve records.`)) return;
+    saving.current = true; setBusy(true); setError(""); setNotice("");
+    try {
+      const db = createClient();
+      const result = item.archived_at
+        ? await db.rpc("restore_inventory_material", { p_material_id: item.id })
+        : await db.rpc("remove_inventory_material", { p_material_id: item.id });
+      if (result.error) throw result.error;
+      const [inventory, history] = await Promise.all([
+        db.from("inventory_materials").select(columns).order("category").order("name"),
+        db.from("inventory_movements").select(movementColumns).order("movement_date", { ascending: false }).order("created_at", { ascending: false }),
+      ]);
+      if (inventory.error || history.error) {
+        throw new Error(`Material was ${item.archived_at ? "restored" : "removed"}, but inventory could not be refreshed: ${inventory.error?.message ?? history.error?.message}`);
+      }
+      setItems(inventory.data as InventoryItem[]);
+      setMovements(history.data as InventoryMovement[]);
+      setNotice(item.archived_at
+        ? `${item.name} restored to active inventory.`
+        : result.data === "deleted"
+          ? `${item.name} permanently deleted.`
+          : `${item.name} archived. Its movement history and product recipes are preserved.`);
+    } catch (cause) { setError(message(cause)); }
+    finally { saving.current = false; setBusy(false); }
+  }
+
+  const activeItems = items.filter(item => !item.archived_at);
+  const shown = items.filter(item => (showArchived || !item.archived_at)
+    && (!category || item.category === category)
+    && (!lowOnly || (!item.archived_at && stockStatus(item) !== "In stock"))
     && `${item.name} ${item.category}`.toLowerCase().includes(query.toLowerCase()));
   const itemName = (id: string) => items.find(item => item.id === id)?.name ?? "Deleted material";
   const itemUnit = (id: string) => items.find(item => item.id === id)?.unit ?? "";
 
   return <section className="employee-manager">
-    <div className="employee-manager-heading"><div><h2>Material stock</h2><p>{items.length} materials · {items.filter(item => stockStatus(item) !== "In stock").length} need restocking. Stock-ins and deductions are saved with their dates.</p></div></div>
+    <div className="employee-manager-heading"><div><h2>Material stock</h2><p>{activeItems.length} materials · {activeItems.filter(item => stockStatus(item) !== "In stock").length} need restocking. Stock-ins and deductions are saved with their dates.</p></div></div>
     {error && <p className="employee-error" role="alert">{error}</p>}
     {notice && <p className="employee-notice" role="status">{notice}</p>}
     <form key={`${editing?.id ?? "new"}-${formKey}`} className="employee-form" onSubmit={save}>
@@ -163,15 +194,16 @@ export function InventoryManager({ initialItems, initialMovements }: { initialIt
     </form>}
     <div className="employee-form-fields">
       <label>Search materials<input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Search name or category"/></label>
-      <label>Category<select value={category} onChange={event => setCategory(event.target.value)}><option value="">All categories</option>{Array.from(new Set(items.map(item => item.category))).sort().map(value => <option key={value}>{value}</option>)}</select></label>
+      <label>Category<select value={category} onChange={event => setCategory(event.target.value)}><option value="">All categories</option>{Array.from(new Set(activeItems.map(item => item.category))).sort().map(value => <option key={value}>{value}</option>)}</select></label>
       <label><span>Stock filter</span><select value={lowOnly ? "low" : "all"} onChange={event => setLowOnly(event.target.value === "low")}><option value="all">All stock</option><option value="low">Needs restocking</option></select></label>
+      <label className="inventory-archived-filter"><input type="checkbox" checked={showArchived} onChange={event => setShowArchived(event.target.checked)}/> Show archived materials</label>
     </div>
     <SearchableList className="employee-table-wrap inventory-table-scroll" role="region" aria-label="Materials inventory, scroll to see more materials" tabIndex={0}><table><thead><tr><th>MATERIAL</th><th>CATEGORY</th><th>ON HAND</th><th>LOW-STOCK LEVEL</th><th>STATUS</th><th>ACTION</th></tr></thead>
-      <tbody>{shown.map(item => <tr key={item.id}><td><b>{item.name}</b></td><td>{item.category}</td><td>{Number(item.quantity).toLocaleString("en-PH")} {item.unit}</td><td>{Number(item.low_stock_level).toLocaleString("en-PH")} {item.unit}</td><td>{stockStatus(item)}</td><td><div className="inventory-actions"><button className="secondary-button" type="button" disabled={busy} onClick={() => { setEditing(item); setMovementTarget(null); setError(""); setNotice(""); }}>Edit details</button><button className="secondary-button" type="button" disabled={busy} onClick={() => { setEditing(null); setMovementTarget(item); setMovementType("stock_in"); setError(""); }}>Stock in</button><button className="secondary-button" type="button" disabled={busy || Number(item.quantity) <= 0} onClick={() => { setEditing(null); setMovementTarget(item); setMovementType("deduction"); setError(""); }}>Deduct</button></div></td></tr>)}</tbody>
+      <tbody>{shown.map(item => <tr key={item.id}><td><b>{item.name}</b></td><td>{item.category}</td><td>{Number(item.quantity).toLocaleString("en-PH")} {item.unit}</td><td>{Number(item.low_stock_level).toLocaleString("en-PH")} {item.unit}</td><td>{item.archived_at ? "Archived" : stockStatus(item)}</td><td><div className="inventory-actions">{item.archived_at ? <button className="secondary-button" type="button" disabled={busy} onClick={() => void removeMaterial(item)}>Restore</button> : <><button className="secondary-button" type="button" disabled={busy} onClick={() => { setEditing(item); setMovementTarget(null); setError(""); setNotice(""); }}>Edit details</button><button className="secondary-button" type="button" disabled={busy} onClick={() => { setEditing(null); setMovementTarget(item); setMovementType("stock_in"); setError(""); }}>Stock in</button><button className="secondary-button" type="button" disabled={busy || Number(item.quantity) <= 0} onClick={() => { setEditing(null); setMovementTarget(item); setMovementType("deduction"); setError(""); }}>Deduct</button><button className="secondary-button" type="button" disabled={busy} onClick={() => void removeMaterial(item)}>Delete</button></>}</div></td></tr>)}</tbody>
     </table>{shown.length === 0 && <p className="empty-inline">No materials match these filters. Add a material or change your search.</p>}</SearchableList>
     <div className="inventory-history-heading"><h3>Stock movement history</h3><p>{movements.length} recorded movement{movements.length === 1 ? "" : "s"}</p></div>
-    <SearchableList className="employee-table-wrap inventory-table-scroll" role="region" aria-label="Dated inventory stock-ins and deductions" tabIndex={0}><table><thead><tr><th>DATE</th><th>MATERIAL</th><th>MOVEMENT</th><th>QUANTITY</th></tr></thead><tbody>
-      {movements.map(movement => <tr key={movement.id}><td>{movement.movement_date}</td><td><b>{itemName(movement.material_id)}</b></td><td>{movement.movement_type === "stock_in" ? "Stock-in" : "Deduction"}</td><td>{Number(movement.quantity).toLocaleString("en-PH")} {itemUnit(movement.material_id)}</td></tr>)}
+    <SearchableList className="employee-table-wrap inventory-table-scroll" role="region" aria-label="Dated inventory stock-ins and deductions" tabIndex={0}><table><thead><tr><th>DATE</th><th>MATERIAL</th><th>MOVEMENT</th><th>SOURCE / ORDER</th><th>QUANTITY</th></tr></thead><tbody>
+      {movements.map(movement => <tr key={movement.id}><td>{movement.movement_date}</td><td><b>{itemName(movement.material_id)}</b></td><td>{movement.movement_type === "stock_in" ? "Stock-in" : "Deduction"}</td><td>{movement.order_number ? `${movement.source === "order_reversal" ? "Order adjustment" : "Order"} ${movement.order_number}` : movement.source === "manual" ? "Manual" : movement.source === "order_reversal" ? "Order adjustment" : "Order deduction"}</td><td>{Number(movement.quantity).toLocaleString("en-PH")} {itemUnit(movement.material_id)}</td></tr>)}
     </tbody></table>{movements.length === 0 && <p className="empty-inline">No stock movements have been recorded yet.</p>}</SearchableList>
   </section>;
 }
