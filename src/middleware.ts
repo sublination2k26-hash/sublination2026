@@ -9,6 +9,9 @@ function noCache(response: NextResponse) {
 }
 
 export async function middleware(request: NextRequest) {
+  const isPwaAsset = ["/manifest.webmanifest", "/sw.js", "/offline.html"].includes(request.nextUrl.pathname);
+  if (isPwaAsset) return noCache(NextResponse.next());
+
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const isPublic = request.nextUrl.pathname === "/login" || request.nextUrl.pathname === "/auth/callback" || request.nextUrl.pathname === "/forgot-password" || request.nextUrl.pathname === "/reset-password";

@@ -7,12 +7,13 @@ const {NextRequest,NextResponse}=require('next/server');
 const compile=file=>ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText;
 
 async function runMiddleware(path,scenario={}){
-  let signouts=0;
+  let signouts=0,authChecks=0;
   const exported={};
   vm.runInNewContext(compile('src/middleware.ts'),{exports:exported,process:{env:{NEXT_PUBLIC_SUPABASE_URL:'https://example.supabase.co',NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:'test-key'}},require(name){
     if(name==='next/server')return {NextResponse};
     if(name==='@supabase/ssr')return {createServerClient(url,key,{cookies}){return {
       auth:{async getUser(){
+        authChecks++;
         if(scenario.refresh){
           cookies.setAll([{name:'session.0',value:'new-first',options:{path:'/'}}],{'Cache-Control':'private, no-store',Pragma:'no-cache',Expires:'0'});
           cookies.setAll([{name:'session.1',value:'new-second',options:{path:'/'}}],{});
@@ -25,7 +26,7 @@ async function runMiddleware(path,scenario={}){
   }});
   const request=new NextRequest('https://shop.test'+path,{headers:{cookie:'session.0=old-first; session.1=old-second'}});
   const response=await exported.middleware(request);
-  return {response,signouts,request};
+  return {response,signouts,authChecks,request};
 }
 
 test('Back to login with an authenticated session redirects to the menu and preserves every refreshed cookie chunk',async()=>{
@@ -124,5 +125,15 @@ test('password recovery pages are public and keep authenticated users on the res
   const signedOut=await runMiddleware(path,{noUser:true});assert.equal(signedOut.response.status,200);
   const signedIn=await runMiddleware(path,{refresh:true});assert.equal(signedIn.response.status,200);
   assert.match(signedIn.response.headers.get('cache-control'),/no-store/);
+ }
+});
+
+test('PWA manifest, service worker, and offline page bypass authentication middleware',async()=>{
+ for(const path of ['/manifest.webmanifest','/sw.js','/offline.html']){
+  const signedOut=await runMiddleware(path,{noUser:true});
+  assert.equal(signedOut.response.status,200);
+  assert.equal(signedOut.response.headers.get('location'),null);
+  assert.equal(signedOut.authChecks,0,'public PWA assets must not require a Supabase session');
+  assert.match(signedOut.response.headers.get('cache-control'),/no-store/);
  }
 });
