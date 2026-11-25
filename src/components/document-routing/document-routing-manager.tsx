@@ -6,12 +6,34 @@ import { ChevronRight, History, FilePenLine, Plus, Printer } from "lucide-react"
 import { createClient } from "@/lib/supabase/client";
 import { useAppDialogs } from "@/components/ui/app-dialog-provider";
 import { printRoutingDocument } from "@/lib/document-routing-print";
-import { documentColumns, latestStage, latestStageUpdatedAt, pendingRoutingStages, routingStages, type RoutingDocument, type RoutingEntry } from "@/lib/document-routing";
+import { documentColumns, latestStage, latestStageUpdatedAt, pendingRoutingStages, routingStages, routingSuppliers, type RoutingDocument, type RoutingEntry } from "@/lib/document-routing";
 import "./document-routing.css";
 
 const money = (value: number) => Number(value).toLocaleString("en-PH", { style: "currency", currency: "PHP" });
 const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 const message = (error: unknown) => typeof error === "object" && error !== null && "message" in error ? String(error.message) : "Could not save document.";
+
+function DocumentRecipientFields({ document }: { document?: RoutingDocument }) {
+  const [supplier, setSupplier] = useState<string>(document?.suppliers?.[0] ?? "");
+  const [payee, setPayee] = useState(document?.payee ?? "");
+  const [mode, setMode] = useState<"supplier" | "payee">(payee && payee !== supplier ? "payee" : "supplier");
+
+  return <>
+    <fieldset className="routing-recipient">
+      <legend>Recipient type</legend>
+      <div>
+        <label><input type="radio" name="recipient_type" value="supplier" checked={mode === "supplier"} onChange={() => setMode("supplier")}/> Supplier</label>
+        <label><input type="radio" name="recipient_type" value="payee" checked={mode === "payee"} onChange={() => setMode("payee")}/> Payee</label>
+      </div>
+    </fieldset>
+    {mode === "supplier"
+      ? <label>Supplier<select name="supplier" required value={supplier} onChange={event => setSupplier(event.target.value)}>
+        <option value="" disabled>Choose supplier</option>
+        {routingSuppliers.map(value => <option key={value} value={value}>{value}</option>)}
+      </select></label>
+      : <label>Payee<input name="payee" required maxLength={200} value={payee} onChange={event => setPayee(event.target.value)}/></label>}
+  </>;
+}
 
 export function DocumentRoutingManager({ initialDocuments }: { initialDocuments: RoutingDocument[] }) {
   const { confirm } = useAppDialogs();
@@ -23,6 +45,7 @@ export function DocumentRoutingManager({ initialDocuments }: { initialDocuments:
   const [busy, setBusy] = useState(false);
   const saving = useRef(false);
   const [error, setError] = useState("");
+  const [saveError, setSaveError] = useState<{ form: string; message: string } | null>(null);
   const [notice, setNotice] = useState("");
   const [formKey, setFormKey] = useState(0);
   const [formOpen, setFormOpen] = useState(false);
@@ -41,7 +64,7 @@ export function DocumentRoutingManager({ initialDocuments }: { initialDocuments:
   const entries = [...(document?.document_routing_entries ?? [])].sort((a, b) => a.created_at.localeCompare(b.created_at));
   const pendingStages = pendingRoutingStages(entries);
   const canRelease = Boolean(document) && pendingStages.length === 0;
-  function choose(id: string | null, showHistory = false) { setHistoryOnly(showHistory); setSelected(id); setError(""); setNotice(""); setFormKey(key => key + 1); setFormOpen(true); }
+  function choose(id: string | null, showHistory = false) { setHistoryOnly(showHistory); setSelected(id); setError(""); setSaveError(null); setNotice(""); setFormKey(key => key + 1); setFormOpen(true); }
   function print(item: RoutingDocument) {
     setError("");
     try { printRoutingDocument(item); }
@@ -69,6 +92,15 @@ export function DocumentRoutingManager({ initialDocuments }: { initialDocuments:
     const form = event.currentTarget;
     const data = new FormData(form);
     const value = (key: string) => String(data.get(key) ?? "").trim();
+    const formName = routing ? value("stage") : "document";
+    setSaveError(null);
+    setNotice("");
+    const invalid = form.querySelector<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>("input:invalid, select:invalid, textarea:invalid");
+    if (invalid) {
+      const label = invalid.labels?.[0]?.firstChild?.textContent?.replace(/\s*\*\s*$/, "").trim();
+      setSaveError({ form: formName, message: [label, invalid.validationMessage].filter(Boolean).join(" – ") });
+      return;
+    }
     saving.current = true; setBusy(true); setError(""); setNotice("");
     try {
       const db = createClient();
@@ -82,8 +114,13 @@ export function DocumentRoutingManager({ initialDocuments }: { initialDocuments:
         setDocuments(current => current.map(item => item.id === document.id ? { ...item, document_routing_entries: [...item.document_routing_entries, entry as RoutingEntry] } : item));
         setNotice("Routing stage saved.");
       } else {
+        const isSupplier = value("recipient_type") === "supplier";
+        const suppliers = isSupplier ? routingSuppliers.filter(supplier => supplier === value("supplier")) : [];
+        const payee = isSupplier ? "" : value("payee");
+        if (isSupplier ? !suppliers.length : !payee) throw new Error(isSupplier ? "Choose a supplier." : "Enter a payee.");
         const values = {
-          pr_number: value("pr_number"), po_number: value("po_number"), title: value("title"), payee: value("payee"),
+          pr_number: value("pr_number"), po_number: value("po_number"), title: value("title"), payee,
+          ...(isSupplier || document?.suppliers?.length ? { suppliers } : {}),
           request_date: value("request_date"), amount: Number(value("amount")),
           cheque_number: value("cheque_number"), bir_reference: value("bir_reference"),
           gross_amount: Number(value("gross_amount")), tax_deduction: Number(value("tax_deduction")),
@@ -98,17 +135,22 @@ export function DocumentRoutingManager({ initialDocuments }: { initialDocuments:
         const result = document
           ? await db.from("routing_documents").update(values).eq("id", document.id).eq("updated_at", document.updated_at).select(documentColumns).maybeSingle()
           : await db.from("routing_documents").insert(values).select(documentColumns).single();
-        if (result.error) throw result.error;
+        if (result.error) {
+          if (result.error.code === "PGRST204" && result.error.message.includes("'suppliers'")) {
+            throw new Error("Supplier saving requires the Supabase migration 202611260002_document_routing_suppliers.sql. Apply it to this project's database, then try again.");
+          }
+          throw result.error;
+        }
         if (!result.data) throw new Error("This document changed in another session. Reload before saving again.");
         const saved = result.data as RoutingDocument;
         setDocuments(current => document ? current.map(item => item.id === saved.id ? saved : item) : [saved, ...current]);
         setSelected(saved.id); setFormKey(key => key + 1); setNotice("Document saved.");
         setFormOpen(true);
       }
-    } catch (cause) { setError(message(cause)); }
+    } catch (cause) { setSaveError({ form: formName, message: message(cause) }); }
     finally { saving.current = false; setBusy(false); }
   }
-  const shown = documents.filter(item => (paymentFilter === "all" || (paymentFilter === "paid" ? Boolean(item.released_date) : !item.released_date)) && (!stageFilter || latestStage(item) === stageFilter) && `${item.pr_number} ${item.po_number} ${item.title} ${item.payee}`.toLowerCase().includes(query.toLowerCase()));
+  const shown = documents.filter(item => (paymentFilter === "all" || (paymentFilter === "paid" ? Boolean(item.released_date) : !item.released_date)) && (!stageFilter || latestStage(item) === stageFilter) && `${item.pr_number} ${item.po_number} ${item.title} ${item.payee} ${item.suppliers?.join(" ") ?? ""}`.toLowerCase().includes(query.toLowerCase()));
   return <section className="employee-manager document-routing">
     <div className="employee-manager-heading"><div><h2>Document register</h2><p>{documents.length} documents · {documents.filter(item => item.released_date).length} payments released</p></div><button className="primary-button routing-new-document" disabled={busy} onClick={() => choose(null)}><Plus size={17} aria-hidden="true"/>New document</button></div>
     {error && !formOpen && <p className="employee-error" role="alert">{error}</p>}
@@ -119,7 +161,7 @@ export function DocumentRoutingManager({ initialDocuments }: { initialDocuments:
       <label>Current office<select value={stageFilter} onChange={event => setStageFilter(event.target.value)}><option value="">All stages</option>{routingStages.map(stage => <option key={stage}>{stage}</option>)}</select></label>
     </div>
     <SearchableList className="employee-table-wrap routing-table" role="region" aria-label="Document register" tabIndex={0}><table><thead><tr><th>PR / PO</th><th>DESCRIPTION / PAYEE</th><th>REQUEST DATE</th><th>AMOUNT</th><th>CURRENT STAGE</th><th>STAGE UPDATED (PH)</th><th>PAYMENT</th><th>ACTION</th></tr></thead><tbody>
-      {shown.map(item => <tr key={item.id} className="routing-document-row" onClick={event => { if (!busy && !(event.target as HTMLElement).closest("button, a, input, select, textarea")) choose(item.id, true); }}><td><button type="button" className="routing-pr-link" disabled={busy} onClick={() => choose(item.id, true)} aria-label={`View stage history for PR ${item.pr_number}`} aria-haspopup="dialog"><History size={18} aria-hidden="true"/><span className="routing-pr-copy"><strong>PR {item.pr_number}</strong><span>View history</span></span><ChevronRight size={16} aria-hidden="true"/></button><span className="routing-po-label">{item.po_number ? `PO ${item.po_number}` : "No PO number"}</span></td><td>{item.title}<br/>{item.payee}</td><td>{item.request_date}</td><td>{money(item.amount)}</td><td>{latestStage(item)}</td><td>{latestStageUpdatedAt(item) ? <time dateTime={latestStageUpdatedAt(item)!}>{new Date(latestStageUpdatedAt(item)!).toLocaleString("en-PH", { timeZone: "Asia/Manila" })}</time> : "—"}</td><td>{item.released_date ? `Released ${item.released_date}` : "Pending"}</td><td><div className="routing-actions"><button className="secondary-button" disabled={busy} onClick={() => choose(item.id)} aria-label={`Update PR ${item.pr_number}`}><FilePenLine size={16} aria-hidden="true"/>Update</button><button type="button" className="secondary-button" disabled={busy} onClick={() => print(item)} aria-label={`Print ${item.pr_number}`}><Printer size={16} aria-hidden="true"/>Print</button><button type="button" className="secondary-button" disabled={busy} onClick={() => void remove(item)} aria-label={`Delete ${item.pr_number}`}>Delete</button></div></td></tr>)}
+      {shown.map(item => <tr key={item.id} className="routing-document-row" onClick={event => { if (!busy && !(event.target as HTMLElement).closest("button, a, input, select, textarea")) choose(item.id, true); }}><td><button type="button" className="routing-pr-link" disabled={busy} onClick={() => choose(item.id, true)} aria-label={`View stage history for PR ${item.pr_number}`} aria-haspopup="dialog"><History size={18} aria-hidden="true"/><span className="routing-pr-copy"><strong>PR {item.pr_number}</strong><span>View history</span></span><ChevronRight size={16} aria-hidden="true"/></button><span className="routing-po-label">{item.po_number ? `PO ${item.po_number}` : "No PO number"}</span></td><td>{item.title}<br/>{item.payee || item.suppliers?.join(", ")}</td><td>{item.request_date}</td><td>{money(item.amount)}</td><td>{latestStage(item)}</td><td>{latestStageUpdatedAt(item) ? <time dateTime={latestStageUpdatedAt(item)!}>{new Date(latestStageUpdatedAt(item)!).toLocaleString("en-PH", { timeZone: "Asia/Manila" })}</time> : "—"}</td><td>{item.released_date ? `Released ${item.released_date}` : "Pending"}</td><td><div className="routing-actions"><button className="secondary-button" disabled={busy} onClick={() => choose(item.id)} aria-label={`Update PR ${item.pr_number}`}><FilePenLine size={16} aria-hidden="true"/>Update</button><button type="button" className="secondary-button" disabled={busy} onClick={() => print(item)} aria-label={`Print ${item.pr_number}`}><Printer size={16} aria-hidden="true"/>Print</button><button type="button" className="secondary-button" disabled={busy} onClick={() => void remove(item)} aria-label={`Delete ${item.pr_number}`}>Delete</button></div></td></tr>)}
     </tbody></table>{shown.length === 0 && <p className="empty-inline">No documents match. Select New document or adjust the filters.</p>}</SearchableList>
     <dialog ref={dialog} className="routing-document-dialog" aria-labelledby={titleId} onCancel={event => { if (saving.current) event.preventDefault(); else setFormOpen(false); }} onClose={() => setFormOpen(false)}>
     <div className="routing-dialog-heading"><h2 id={titleId}>{document ? `PR ${document.pr_number} - Routing history` : "New document"}</h2><button type="button" className="secondary-button" disabled={busy} onClick={() => setFormOpen(false)} aria-label="Close document form">Close</button></div>
@@ -130,7 +172,7 @@ export function DocumentRoutingManager({ initialDocuments }: { initialDocuments:
       <button type="button" disabled={busy} aria-pressed={!historyOnly} onClick={()=>setHistoryOnly(false)}><FilePenLine size={17} aria-hidden="true"/>Update details</button>
     </nav>}
     {document && <section hidden={!historyOnly} className="routing-history-summary" aria-label={`Stage dates for PR ${document.pr_number}`}>
-      <p>{document.title} {document.payee && ` / ${document.payee}`}</p>
+      <p>{document.title} {(document.payee || document.suppliers?.length) ? ` / ${document.payee || document.suppliers.join(", ")}` : ""}</p>
       <h3>Stage dates</h3>
       <p>Latest dates for every stage. Pending stages have no recorded dates yet.</p>
       <SearchableList className="employee-table-wrap routing-table routing-stage-summary"><table><thead><tr><th>STAGE</th><th>RECEIVED</th><th>FORWARDED</th><th>LAST UPDATED (PH)</th></tr></thead><tbody>{routingStages.map(stage => {
@@ -142,12 +184,12 @@ export function DocumentRoutingManager({ initialDocuments }: { initialDocuments:
 
     </section>}
     <div className="routing-edit-details" hidden={Boolean(document) && historyOnly}>
-    <form className="employee-form" key={`${selected}-${formKey}`} onSubmit={event => save(event)}>
+    <form className="employee-form" key={`${selected}-${formKey}`} noValidate onSubmit={event => save(event)}>
       <fieldset disabled={busy}><div className="employee-form-fields">
         <label>P.R. number *<input name="pr_number" required maxLength={100} defaultValue={document?.pr_number}/></label>
         <label>P.O. number<input name="po_number" maxLength={100} defaultValue={document?.po_number}/></label>
         <label>Description *<input name="title" required maxLength={300} defaultValue={document?.title}/></label>
-        <label>Supplier / payee<input name="payee" maxLength={200} defaultValue={document?.payee}/></label>
+        <DocumentRecipientFields document={document}/>
         <label>Request date *<input name="request_date" type="date" required defaultValue={document?.request_date ?? today()}/></label>
         <label>Request amount (PHP) *<input name="amount" type="number" required min="0" max="9999999999.99" step="0.01" defaultValue={document?.amount ?? 0}/></label>
       </div><h3>Cheque release</h3><p>{canRelease ? "All routing stages are complete. You can now record the cheque release." : `Complete all routing stages and record their forwarded dates before cheque release. Pending: ${pendingStages.join(", ")}.`}</p><fieldset disabled={!canRelease}><div className="employee-form-fields">
@@ -158,6 +200,7 @@ export function DocumentRoutingManager({ initialDocuments }: { initialDocuments:
         <label>Release date<input name="released_date" type="date" defaultValue={document?.released_date ?? ""}/></label>
         <label>Released to / signature reference<input name="released_to" maxLength={200} defaultValue={document?.released_to}/></label>
       </div></fieldset>{document && <p>Saved net payment: <b>{money(document.net_amount)}</b></p>}<button className="primary-button" type="submit">{busy ? "Saving…" : "Save document"}</button></fieldset>
+      {saveError?.form === "document" && <p className="employee-error" role="alert">{saveError.message}</p>}
     </form>
     <h3>Routing stages and dates</h3>
     <p>One routing sheet for this PR. Save the document details first, then record each office below. Leave future stages blank.</p>
@@ -167,7 +210,7 @@ export function DocumentRoutingManager({ initialDocuments }: { initialDocuments:
       <div className="routing-stage-forms">{routingStages.map(stage => {
         const latest = [...entries].reverse().find(entry => entry.stage === stage);
         const locked = stage === "CHEQUE RELEASE" && !canRelease;
-        return <form className="employee-form routing-stage-form" key={`${document.id}-${stage}-${latest?.id ?? "pending"}`} onSubmit={event => save(event, true)}>
+        return <form className="employee-form routing-stage-form" key={`${document.id}-${stage}-${latest?.id ?? "pending"}`} noValidate onSubmit={event => save(event, true)}>
           <fieldset disabled={busy || locked}>
             <legend>{stage} ? {latest?.forwarded_date ? "Forwarded" : latest ? "Received" : "Pending"}</legend>
             <input type="hidden" name="stage" value={stage}/>
@@ -179,6 +222,7 @@ export function DocumentRoutingManager({ initialDocuments }: { initialDocuments:
             </div>
             <button className="primary-button" type="submit">{busy ? "Saving?" : `Save ${stage} dates`}</button>
           </fieldset>
+          {saveError?.form === stage && <p className="employee-error" role="alert">{saveError.message}</p>}
           {locked && <p>Complete the forwarded dates of all preceding stages first.</p>}
         </form>;
       })}</div>

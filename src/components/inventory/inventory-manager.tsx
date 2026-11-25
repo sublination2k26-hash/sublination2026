@@ -274,7 +274,9 @@ export function InventoryManager({ initialItems, initialMovements }: { initialIt
             <label>Material name *<input name="name" required maxLength={120} defaultValue={editing?.name} placeholder="e.g. Heat-resistant tape"/></label>
             <label>Category *<select name="category" required defaultValue={editing?.category ?? ""}><option value="" disabled>Category</option>{editing?.category && !categories.includes(editing.category) && <option value={editing.category}>{editing.category}</option>}{categories.map(value => <option key={value} value={value}>{value}</option>)}</select></label>
             <label>Unit *<input name="unit" required maxLength={30} defaultValue={editing?.unit ?? "pcs"} placeholder="ml, meters, rolls, pcs"/></label>
-            {!editing && <label>Starting stock *<input name="quantity" type="number" required min="0" max="999999999.999" step="0.001" defaultValue="0"/></label>}
+            {editing
+              ? <label>Available stock<input readOnly value={`${Number(editing.quantity).toLocaleString("en-PH")} ${editing.unit}`}/></label>
+              : <label>Starting stock *<input name="quantity" type="number" required min="0" max="999999999.999" step="0.001" defaultValue="0"/></label>}
             <label>Low-stock level *<input name="low_stock_level" type="number" required min="0" max="999999999.999" step="0.001" defaultValue={editing?.low_stock_level ?? 0}/></label>
             {!editing && <label>Stock-in date *<input name="stock_date" type="date" required max={localDate()} value={stockDate} onChange={event => setStockDate(event.target.value)}/></label>}
           </div>

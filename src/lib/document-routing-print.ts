@@ -13,7 +13,7 @@ export function routingDocumentPrintHtml(document: RoutingDocument) {
     <header><h1>Subli-nation Printing System</h1><p>Document routing &amp; disbursement record</p><p><b>P.R. ${escape(document.pr_number)}</b> · Current stage: ${escape(latestStage(document))}</p></header>
     <h2>Document details</h2>${details([
       ["P.R. number", document.pr_number], ["P.O. number", document.po_number],
-      ["Description", document.title], ["Supplier / payee", document.payee],
+      ["Description", document.title], ["Supplier", document.suppliers?.join(", ")], ["Payee", document.payee],
       ["Request date", document.request_date], ["Request amount", money(document.amount)],
     ])}
     <h2>Cheque release</h2>${details([

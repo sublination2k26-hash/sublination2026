@@ -27,8 +27,22 @@ test('document routing: admin access, preserved history, dates, money and concur
     await db.exec(`set role ${role}`);
   };
   await actAs(1);
-  const record = (await db.query(`insert into routing_documents(pr_number,title,request_date,amount,gross_amount,tax_deduction)
-    values ('PR-001','Office supplies','2026-10-01',1000,1000,50) returning *,updated_at::text as version`)).rows[0];
+  await db.query("insert into routing_documents(pr_number,title,request_date,payee) values ('PR-LEGACY','Legacy document','2026-10-01','MAGNUS')");
+  await db.exec('reset role');
+  await db.query("select set_config('test.uid','',false)");
+  await db.exec(fs.readFileSync('supabase/migrations/202611260002_document_routing_suppliers.sql', 'utf8'));
+  await actAs(1);
+  const legacy = (await db.query("select payee,suppliers from routing_documents where pr_number='PR-LEGACY'")).rows[0];
+  assert.deepEqual(legacy, { payee: 'MAGNUS', suppliers: ['MAGNUS'] });
+  await db.exec('reset role');
+  await db.query("delete from routing_documents where pr_number='PR-LEGACY'");
+  await actAs(1);
+  const record = (await db.query(`insert into routing_documents(pr_number,title,request_date,amount,gross_amount,tax_deduction,payee,suppliers)
+    values ('PR-001','Office supplies','2026-10-01',1000,1000,50,'Recipient name',array['MAGNUS','SUBLI-NATION'])
+    returning *,updated_at::text as version`)).rows[0];
+  assert.equal(record.payee, 'Recipient name');
+  assert.deepEqual(record.suppliers, ['MAGNUS', 'SUBLI-NATION']);
+  await assert.rejects(db.query("update routing_documents set suppliers=array['Invalid'] where id=$1", [record.id]), /check constraint/);
   assert.equal(Number(record.net_amount), 950);
   assert.equal(Number(record.cash_advance_balance), 0);
   await assert.rejects(db.query('update routing_documents set cash_advance_amount=500 where id=$1', [record.id]), /document_cash_advance_details/);

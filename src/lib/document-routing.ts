@@ -1,10 +1,12 @@
 export const routingStages = ["P.R.", "P.O.", "COA", "BAC", "GSO", "ADMIN", "GSO BODEGA", "INSPECTOR", "NUMBERING", "CHECKING", "ACCOUNTING", "ASSESSORS", "CHEQUE RELEASE"] as const;
+export const routingSuppliers = ["MAGNUS", "SUBLI-NATION"] as const;
 export type RoutingEntry = {
   id: string; document_id: string; stage: string; received_date: string;
   forwarded_date: string | null; handled_by: string; remarks: string; created_at: string;
 };
 export type RoutingDocument = {
   id: string; pr_number: string; po_number: string; title: string; payee: string;
+  suppliers: (typeof routingSuppliers)[number][];
   request_date: string; amount: number; cheque_number: string; bir_reference: string;
   gross_amount: number; tax_deduction: number; net_amount: number;
   released_date: string | null; released_to: string; updated_at: string; created_at: string;

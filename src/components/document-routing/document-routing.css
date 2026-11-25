@@ -1,4 +1,8 @@
 .document-routing fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.routing-recipient legend { padding: 0; color: #67746b; font-size: 13px; font-weight: 600; }
+.routing-recipient > div { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 6px; }
+.routing-recipient > div > label { flex-direction: row; align-items: center; }
+.routing-recipient input[type="radio"] { height: auto; margin: 0; }
 .document-routing h3 { margin: 18px 0 12px; }
 .document-routing .employee-form { margin-top: 24px; }
 .routing-table { overflow: auto; max-height: 440px; margin: 16px 0; }
