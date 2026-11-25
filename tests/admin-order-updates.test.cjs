@@ -3,7 +3,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const {PGlite}=require('@electric-sql/pglite');
 
-test('admin edits preserve negotiated prices and customization; ready action saves without completing tasks',async t=>{
+test('admin can mark an order ready without fabricating pending task history',async t=>{
   const db=new PGlite();t.after(()=>db.close());
   await db.exec(`create role anon;create role authenticated;create schema auth;create table auth.users(id uuid primary key);
     create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('test.uid',true),'')::uuid$$;
@@ -23,16 +23,22 @@ test('admin edits preserve negotiated prices and customization; ready action sav
   const customization={names:'Player',roster:[{name:'Player',number:'7',size:'M'}],intake_index:0,garment:'Jersey',production_service:'full_garment',payment_due_date:'2026-12-01'};
   const item=(await db.query("insert into order_items(order_id,product_id,product_name,quantity,unit_price,customization) values($1,$2,'Jersey',2,350,$3) returning id",[order,product,customization])).rows[0].id;
   await db.query("insert into payments(order_id,amount) values($1,700)",[order]);
-  await db.query("insert into production_tasks(order_id,order_item_id,stage) values($1,$2,'layout')",[order,item]);
+  for(const stage of ['layout','printing','heat_press'])await db.query("insert into production_tasks(order_id,order_item_id,stage) values($1,$2,$3)",[order,item,stage]);
   await db.exec('set role authenticated');
   const edit=(names='Player',quantity=2)=>db.query("select update_catalog_order($1,'Edited customer','123',$2,$3,'2026-12-02',$4,'Edited notes')",[order,product,quantity,names]);
   await edit();
   assert.deepEqual((await db.query('select customization from order_items where id=$1',[item])).rows[0].customization,customization);
   assert.equal(Number((await db.query('select total from orders where id=$1',[order])).rows[0].total),700);
   assert.equal((await db.query('select full_name from customers where id=$1',[customer])).rows[0].full_name,'Edited customer');
-  await db.query('select admin_mark_order_ready($1,$2)',[order,'Completed before encoding']);
+  await db.query('select admin_mark_order_ready($1,$2)',[order,'Admin verified Printer and Heat press work is complete.']);
   assert.equal((await db.query('select status from orders where id=$1',[order])).rows[0].status,'ready_for_release');
-  assert.equal((await db.query('select status from production_tasks where order_id=$1',[order])).rows[0].status,'pending');
+  const taskHistory=(await db.query('select stage,status from production_tasks where order_id=$1',[order])).rows;
+  assert.deepEqual(taskHistory.map(({stage,status})=>({stage,status})).sort((a,b)=>a.stage.localeCompare(b.stage)),[
+    {stage:'heat_press',status:'pending'},
+    {stage:'layout',status:'pending'},
+    {stage:'printing',status:'pending'},
+  ]);
+  assert.match((await db.query('select notes from orders where id=$1',[order])).rows[0].notes,/Admin verified Printer and Heat press work is complete/);
   await assert.rejects(edit('Changed',1),/lower than payments/);
   assert.deepEqual((await db.query('select customization from order_items where id=$1',[item])).rows[0].customization,customization);
   await db.exec('reset role');

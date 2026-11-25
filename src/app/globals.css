@@ -70,4 +70,21 @@ button{font-family:inherit;cursor:pointer}input,select,textarea{font:inherit;col
 .release-form .release-submit{width:100%;height:auto;min-height:46px;justify-content:center;font-size:14px;white-space:normal;line-height:1.4;padding:12px 14px}
 .release-submit:disabled{opacity:.65;cursor:wait}
 .release-history-title{margin:24px 0 10px;font-size:14px;color:var(--ink)}
+.ready-dialog{width:min(480px,calc(100% - 32px));max-width:none;max-height:none;margin:auto;padding:0;border:0;background:transparent;overflow:visible}
+.ready-dialog::backdrop{background:#142b4d6b}
+.ready-dialog .ready-modal{width:100%;max-height:calc(100dvh - 32px)}
+.ready-modal .modal-heading{gap:12px}
+.ready-modal .modal-heading button{flex:none}
+.ready-modal-copy{margin:0 0 16px;color:#67746b;font-size:13px;line-height:1.55}
+.ready-modal .form textarea{width:100%;min-height:96px}
+.ready-modal .blocked-message{margin:0}
+.ready-modal .form-actions{flex-wrap:wrap}
+.ready-modal button:disabled{opacity:.6;cursor:default}
+.stage-controls{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-top:12px}
+.stage-controls .task-status-control{flex:1 0 min(220px,100%);min-width:0;max-width:100%;margin-top:0}
+.stage-controls .task-status-control select{width:100%;min-width:0}
+.stage-controls button{max-width:100%;height:auto;min-height:36px;padding-block:8px;white-space:normal}
+.stage-controls .mark-ready-button{font-size:13px}
+.stage-controls .mark-ready-button svg{flex:none}
+@media(max-width:580px){.stage-controls{gap:7px}.stage-controls .task-status-control{flex-basis:100%}}
 @container(max-width:270px){.release-field-row{grid-template-columns:1fr}}
