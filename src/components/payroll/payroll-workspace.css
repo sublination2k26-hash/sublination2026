@@ -80,7 +80,6 @@ body .payroll-workspace .searchable-list .searchable-list-scroll { display: bloc
   .payroll-lines .payroll-table-wrap td:nth-child(9)::before { content: "Cash advance"; }
   .payroll-lines .payroll-table-wrap td:nth-child(10)::before { content: "SSS deduction"; }
   .payroll-lines .payroll-table-wrap td:nth-child(11)::before { content: "Net pay"; }
-  .payroll-lines .payroll-table-wrap tfoot { display: none; }
   .payroll-lines .payroll-adjust { flex-direction: column; align-items: stretch; gap: 7px; }
   .payroll-lines .payroll-adjust input { box-sizing: border-box; width: 100%; min-width: 0; max-width: none; min-height: 44px; font-size: 16px; }
   .payroll-lines .payroll-adjust button { width: 100%; min-height: 44px; }

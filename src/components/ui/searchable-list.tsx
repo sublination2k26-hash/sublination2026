@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type HTMLAttributes } from "react";
+import { TableScroll } from "./table-scroll";
 import "./searchable-list.css";
 
 /** Filters rendered records, including formatted dates and nested status labels. */
@@ -42,7 +43,7 @@ export function SearchableList({ children, className = "", recordSelector = "tab
       <label htmlFor={id}>Search this list<input id={id} type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Search names, numbers, dates..." aria-controls={`${id}-records`}/></label>
       <span role="status" aria-live="polite">{counts.shown} of {counts.total} records</span>
     </div>
-    <div {...props} id={`${id}-records`} ref={region} className={`${className} searchable-list-scroll`} role={props.role ?? "region"} aria-label={props["aria-label"] ?? "Scrollable records"} tabIndex={props.tabIndex ?? 0}>{children}</div>
+    <TableScroll {...props} id={`${id}-records`} regionRef={region} className={`${className} searchable-list-scroll`}>{children}</TableScroll>
     {query.trim() && counts.shown === 0 && <p className="searchable-list-empty">No matching records. Try another search.</p>}
   </div>;
 }

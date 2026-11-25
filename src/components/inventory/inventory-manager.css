@@ -84,6 +84,55 @@
   margin: 14px 20px 0;
 }
 
+.inventory-detail-stock {
+  margin: 16px 20px 0;
+}
+
+.inventory-stock-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #dce6f2;
+  border-radius: 8px;
+  background: #f3f7fc;
+}
+
+.inventory-stock-summary > div {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+  min-width: 0;
+}
+
+.inventory-dialog-form .inventory-stock-summary {
+  margin-bottom: 14px;
+}
+
+.inventory-stock-label {
+  color: #52647a;
+  font-size: 13px;
+}
+
+.inventory-stock-quantity {
+  color: #203653;
+  font-size: 24px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.inventory-stock-status {
+  color: #52647a;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.inventory-stock-status[data-status="Low stock"] { color: #8a4b08; }
+.inventory-stock-status[data-status="Out of stock"] { color: #b42318; }
+.inventory-dialog-form[hidden] { display: none; }
+
 .inventory-material-details {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

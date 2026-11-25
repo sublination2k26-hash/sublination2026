@@ -1,0 +1,132 @@
+.table-scroll {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.table-scroll:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+@media screen and (max-width: 760px) {
+  body .table-scroll[role],
+  body .searchable-list .table-scroll.searchable-list-scroll {
+    max-height: none;
+    overflow: visible;
+    border: 0;
+    scrollbar-gutter: auto;
+  }
+
+  body .table-scroll[role] > table {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    white-space: normal;
+  }
+
+  body .table-scroll[role] > table > thead {
+    display: table-header-group;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  body .table-scroll[role] > table > :is(tbody, tfoot) {
+    display: grid;
+    gap: 10px;
+    min-width: 0;
+    padding: 0;
+  }
+
+  .table-scroll > table > tfoot { margin-top: 10px; }
+
+  body .table-scroll[role] > table > :is(tbody, tfoot) > tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    min-width: 0;
+    gap: 0 12px;
+    padding: 8px 12px;
+    border: 1px solid var(--line, #edf0ed);
+    border-radius: 10px;
+    background: var(--surface, #fff);
+  }
+
+  body .table-scroll[role] > table > :is(tbody, tfoot) > tr > :is(th, td) {
+    display: block;
+    width: auto;
+    min-width: 0;
+    min-height: 0;
+    height: auto;
+    padding: 8px 0;
+    border: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  body .table-scroll[role] :is(tbody, tfoot) > tr > :is(th, td)[data-mobile-label]::before {
+    display: block;
+    margin-bottom: 4px;
+    color: var(--muted, #667085);
+    content: attr(data-mobile-label);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+
+  body .table-scroll[role] :is(tbody, tfoot) > tr > :is(th, td):not([data-mobile-label])::before {
+    display: none;
+  }
+
+  .table-scroll :is(tbody, tfoot) > tr > :is(th, td):is(:first-child, :last-child, [colspan]) {
+    grid-column: 1 / -1;
+  }
+
+  .table-scroll :is(tbody, tfoot) > tr > :is(th, td) :where(div, span, code, input, select, textarea, button, a) {
+    min-width: 0;
+    max-width: 100%;
+    flex-wrap: wrap;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  body .table-scroll[role="region"] td button,
+  body .table-scroll[role="region"] td a[class*="-button"] {
+    min-block-size: 44px;
+  }
+
+  .table-scroll[role] td .employee-actions {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .table-scroll[role] td .employee-actions > button {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    width: auto;
+    min-width: 44px;
+    height: auto;
+    padding: 6px 10px;
+    white-space: nowrap;
+    overflow-wrap: normal;
+  }
+
+  .table-scroll[role] td .employee-actions > button svg {
+    flex: none;
+  }
+}
+
+@media print {
+  .table-scroll { overflow: visible; }
+}

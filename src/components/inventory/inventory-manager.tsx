@@ -20,7 +20,19 @@ type MovementType = "stock_in" | "deduction";
 type InventoryDialogState =
   | { kind: "add" }
   | { kind: "details" | "edit"; materialId: string }
-  | { kind: "movement"; materialId: string; movementType: MovementType };
+  | { kind: "movement"; materialId: string; movementType: MovementType; fromEdit: boolean };
+
+function MaterialStock({ item, busy, onAdjust }: { item: InventoryItem; busy: boolean; onAdjust: () => void }) {
+  const status = item.archived_at ? "Archived" : stockStatus(item);
+  return <div className="inventory-stock-summary">
+    <div>
+      <span className="inventory-stock-label">Available stock</span>
+      <strong className="inventory-stock-quantity">{Number(item.quantity).toLocaleString("en-PH")} {item.unit}</strong>
+      <span className="inventory-stock-status" data-status={status}>{status}</span>
+    </div>
+    {!item.archived_at && <button type="button" className="secondary-button" disabled={busy} onClick={onAdjust}>Adjust Stock</button>}
+  </div>;
+}
 
 export function InventoryManager({ initialItems, initialMovements }: { initialItems: InventoryItem[]; initialMovements: InventoryMovement[] }) {
   const { confirm } = useAppDialogs();
@@ -48,7 +60,8 @@ export function InventoryManager({ initialItems, initialMovements }: { initialIt
   const materialDialogOpen = materialDialogState !== null;
   const materialId = materialDialogState && "materialId" in materialDialogState ? materialDialogState.materialId : null;
   const selectedMaterial = materialId ? items.find(item => item.id === materialId) ?? null : null;
-  const editing = materialDialogState?.kind === "edit" ? selectedMaterial : null;
+  const editing = materialDialogState?.kind === "edit" || (materialDialogState?.kind === "movement" && materialDialogState.fromEdit)
+    ? selectedMaterial : null;
   const movementTarget = materialDialogState?.kind === "movement" ? selectedMaterial : null;
   const movementType = materialDialogState?.kind === "movement" ? materialDialogState.movementType : "stock_in";
 
@@ -75,6 +88,11 @@ export function InventoryManager({ initialItems, initialMovements }: { initialIt
     setError(""); setNotice(""); setMaterialDialogState({ kind: "details", materialId: item.id });
   }
 
+  function openMovement(item: InventoryItem) {
+    setError(""); setNotice(""); setMovementKey(key => key + 1);
+    setMaterialDialogState({ kind: "movement", materialId: item.id, movementType: "stock_in", fromEdit: materialDialogState?.kind === "edit" });
+  }
+
   function closeMaterialDialog() {
     if (busy) return;
     setMaterialDialogState(null);
@@ -82,7 +100,7 @@ export function InventoryManager({ initialItems, initialMovements }: { initialIt
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (saving.current) return;
+    if (saving.current || materialDialogState?.kind === "movement") return;
     if (!editing && materialDialogState?.kind !== "add") return;
     const form = new FormData(event.currentTarget);
     const values = {
@@ -157,7 +175,8 @@ export function InventoryManager({ initialItems, initialMovements }: { initialIt
         p_movement_date: date,
       });
       if (result.error) throw result.error;
-      setMaterialDialogState(null); setMovementKey(key => key + 1);
+      setMaterialDialogState(materialDialogState.fromEdit ? { kind: "edit", materialId: movementTarget.id } : null);
+      setMovementKey(key => key + 1);
       const [inventory, history] = await Promise.all([
         db.from("inventory_materials").select(columns).order("category").order("name"),
         db.from("inventory_movements").select(movementColumns).order("movement_date", { ascending: false }).order("created_at", { ascending: false }),
@@ -247,14 +266,13 @@ export function InventoryManager({ initialItems, initialMovements }: { initialIt
             : materialDialogState?.kind === "movement" ? `Adjust stock — ${selectedMaterial?.name ?? "material"}`
               : `${selectedMaterial?.name ?? "Material"} details`}
       </h2><button type="button" className="secondary-button" onClick={closeMaterialDialog} disabled={busy}>Close</button></div>
-      {error && <p className="employee-error" role="alert">{error}</p>}
+      {error && materialDialogState?.kind === "details" && <p className="employee-error" role="alert">{error}</p>}
       {notice && <p className="employee-notice" role="status">{notice}</p>}
       {materialDialogState?.kind === "details" && selectedMaterial && <>
+        <div className="inventory-detail-stock"><MaterialStock item={selectedMaterial} busy={busy} onAdjust={() => openMovement(selectedMaterial)}/></div>
         <dl className="inventory-material-details">
           <div><dt>Category</dt><dd>{selectedMaterial.category}</dd></div>
-          <div><dt>Available stock</dt><dd>{Number(selectedMaterial.quantity).toLocaleString("en-PH")} {selectedMaterial.unit}</dd></div>
           <div><dt>Low-stock level</dt><dd>{Number(selectedMaterial.low_stock_level).toLocaleString("en-PH")} {selectedMaterial.unit}</dd></div>
-          <div><dt>Status</dt><dd>{selectedMaterial.archived_at ? "Archived" : stockStatus(selectedMaterial)}</dd></div>
           <div><dt>Unit</dt><dd>{selectedMaterial.unit}</dd></div>
         </dl>
         <div className="inventory-dialog-actions">
@@ -262,43 +280,42 @@ export function InventoryManager({ initialItems, initialMovements }: { initialIt
             ? <button type="button" className="secondary-button" disabled={busy} onClick={() => void removeMaterial(selectedMaterial)}>Restore material</button>
             : <>
               <button type="button" className="secondary-button" disabled={busy} onClick={() => { setError(""); setNotice(""); setFormKey(key => key + 1); setMaterialDialogState({ kind: "edit", materialId: selectedMaterial.id }); }}>Edit details</button>
-              <button type="button" className="secondary-button" disabled={busy} onClick={() => { setError(""); setNotice(""); setMovementKey(key => key + 1); setMaterialDialogState({ kind: "movement", materialId: selectedMaterial.id, movementType: "stock_in" }); }}>Adjust Stock</button>
               <button type="button" className="secondary-button inventory-delete-button" disabled={busy} onClick={() => void removeMaterial(selectedMaterial)}>Delete</button>
             </>}
         </div>
       </>}
-      {(editing || materialDialogState?.kind === "add") && <form key={`${editing?.id ?? "new"}-${formKey}`} className="employee-form inventory-dialog-form" onSubmit={save}>
+      {(editing || materialDialogState?.kind === "add") && <form key={`${editing?.id ?? "new"}-${formKey}`} className="employee-form inventory-dialog-form" hidden={Boolean(movementTarget)} onSubmit={save}>
         <div className="employee-form-title">{editing ? `Edit ${editing.name}` : "Add material"}</div>
+        {editing && <MaterialStock item={editing} busy={busy} onAdjust={() => openMovement(editing)}/>}
         <fieldset disabled={busy} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
           <div className="employee-form-fields">
             <label>Material name *<input name="name" required maxLength={120} defaultValue={editing?.name} placeholder="e.g. Heat-resistant tape"/></label>
             <label>Category *<select name="category" required defaultValue={editing?.category ?? ""}><option value="" disabled>Category</option>{editing?.category && !categories.includes(editing.category) && <option value={editing.category}>{editing.category}</option>}{categories.map(value => <option key={value} value={value}>{value}</option>)}</select></label>
             <label>Unit *<input name="unit" required maxLength={30} defaultValue={editing?.unit ?? "pcs"} placeholder="ml, meters, rolls, pcs"/></label>
-            {editing
-              ? <label>Available stock<input readOnly value={`${Number(editing.quantity).toLocaleString("en-PH")} ${editing.unit}`}/></label>
-              : <label>Starting stock *<input name="quantity" type="number" required min="0" max="999999999.999" step="0.001" defaultValue="0"/></label>}
+            {!editing && <label>Starting stock *<input name="quantity" type="number" required min="0" max="999999999.999" step="0.001" defaultValue="0"/></label>}
             <label>Low-stock level *<input name="low_stock_level" type="number" required min="0" max="999999999.999" step="0.001" defaultValue={editing?.low_stock_level ?? 0}/></label>
             {!editing && <label>Stock-in date *<input name="stock_date" type="date" required max={localDate()} value={stockDate} onChange={event => setStockDate(event.target.value)}/></label>}
           </div>
-          {editing && <p className="employee-form-note">To change stock, record a dated stock-in or deduction below. This keeps the movement history accurate.</p>}
           <div className="form-actions"><button className="primary-button" type="submit">{busy ? "Saving…" : editing ? "Save changes" : "Add material"}</button><button type="button" className="secondary-button" onClick={() => {
             setError(""); setNotice("");
             if (editing) setMaterialDialogState({ kind: "details", materialId: editing.id });
             else closeMaterialDialog();
           }} disabled={busy}>Cancel</button></div>
         </fieldset>
+        {error && !movementTarget && <p className="employee-error" role="alert">{error}</p>}
       </form>}
       {movementTarget && <form key={movementKey} className="employee-form inventory-dialog-form" onSubmit={saveMovement}>
         <div className="employee-form-title">Adjust stock — {movementTarget.name}</div>
         <fieldset disabled={busy} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
           <div className="employee-form-fields">
-            <label>Adjustment type *<select name="movement_type" value={movementType} onChange={event => setMaterialDialogState({ kind: "movement", materialId: movementTarget.id, movementType: event.target.value === "deduction" ? "deduction" : "stock_in" })}><option value="stock_in">Stock-in / add</option><option value="deduction" disabled={Number(movementTarget.quantity) <= 0}>Deduct</option></select></label>
+            <label>Adjustment type *<select name="movement_type" value={movementType} onChange={event => setMaterialDialogState({ kind: "movement", materialId: movementTarget.id, movementType: event.target.value === "deduction" ? "deduction" : "stock_in", fromEdit: Boolean(editing) })}><option value="stock_in">Stock-in / add</option><option value="deduction" disabled={Number(movementTarget.quantity) <= 0}>Deduct</option></select></label>
             <label>Quantity ({movementTarget.unit}) *<input name="quantity" type="number" required min="0.001" max="999999999.999" step="0.001" autoFocus/></label>
             <label>{movementType === "stock_in" ? "Stock-in date" : "Deduction date"} *<input name="movement_date" type="date" required max={localDate()} defaultValue={localDate()}/></label>
           </div>
           <p className="employee-form-note">Current stock: {Number(movementTarget.quantity).toLocaleString("en-PH")} {movementTarget.unit}</p>
-          <div className="form-actions"><button className="primary-button" type="submit" disabled={busy}>{busy ? "Saving…" : movementType === "stock_in" ? "Record stock-in" : "Record deduction"}</button><button type="button" className="secondary-button" onClick={() => { setError(""); setMaterialDialogState({ kind: "details", materialId: movementTarget.id }); }} disabled={busy}>Cancel</button></div>
+          <div className="form-actions"><button className="primary-button" type="submit" disabled={busy}>{busy ? "Saving…" : movementType === "stock_in" ? "Record stock-in" : "Record deduction"}</button><button type="button" className="secondary-button" onClick={() => { setError(""); setMaterialDialogState({ kind: editing ? "edit" : "details", materialId: movementTarget.id }); }} disabled={busy}>Cancel</button></div>
         </fieldset>
+        {error && <p className="employee-error" role="alert">{error}</p>}
       </form>}
     </dialog>
     <dialog ref={historyDialog} id={historyDialogId} className="inventory-history-dialog" aria-labelledby={historyTitleId} onCancel={() => setHistoryOpen(false)} onClose={() => setHistoryOpen(false)} onClick={event => {
