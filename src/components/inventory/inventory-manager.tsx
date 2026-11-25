@@ -1,7 +1,7 @@
 "use client";
 
 import { SearchableList } from "@/components/ui/searchable-list";
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { useAppDialogs } from "@/components/ui/app-dialog-provider";
 import { createClient } from "@/lib/supabase/client";
 import { stockStatus, type InventoryItem, type InventoryMovement } from "@/lib/inventory";
@@ -17,14 +17,23 @@ const localDate = () => {
 };
 
 type MovementType = "stock_in" | "deduction";
+type InventoryDialogState =
+  | { kind: "add" }
+  | { kind: "details" | "edit"; materialId: string }
+  | { kind: "movement"; materialId: string; movementType: MovementType };
 
 export function InventoryManager({ initialItems, initialMovements }: { initialItems: InventoryItem[]; initialMovements: InventoryMovement[] }) {
   const { confirm } = useAppDialogs();
+  const historyDialog = useRef<HTMLDialogElement>(null);
+  const materialDialog = useRef<HTMLDialogElement>(null);
+  const historyDialogId = useId();
+  const historyTitleId = useId();
+  const materialDialogId = useId();
+  const materialTitleId = useId();
   const [items, setItems] = useState(initialItems);
   const [movements, setMovements] = useState(initialMovements);
-  const [editing, setEditing] = useState<InventoryItem | null>(null);
-  const [movementTarget, setMovementTarget] = useState<InventoryItem | null>(null);
-  const [movementType, setMovementType] = useState<MovementType>("stock_in");
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [materialDialogState, setMaterialDialogState] = useState<InventoryDialogState | null>(null);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
   const [lowOnly, setLowOnly] = useState(false);
@@ -36,11 +45,45 @@ export function InventoryManager({ initialItems, initialMovements }: { initialIt
   const [formKey, setFormKey] = useState(0);
   const [movementKey, setMovementKey] = useState(0);
   const [stockDate, setStockDate] = useState(localDate);
-  const reset = () => { setEditing(null); setFormKey(key => key + 1); setStockDate(localDate()); };
+  const materialDialogOpen = materialDialogState !== null;
+  const materialId = materialDialogState && "materialId" in materialDialogState ? materialDialogState.materialId : null;
+  const selectedMaterial = materialId ? items.find(item => item.id === materialId) ?? null : null;
+  const editing = materialDialogState?.kind === "edit" ? selectedMaterial : null;
+  const movementTarget = materialDialogState?.kind === "movement" ? selectedMaterial : null;
+  const movementType = materialDialogState?.kind === "movement" ? materialDialogState.movementType : "stock_in";
+
+  useEffect(() => {
+    const dialog = historyDialog.current;
+    if (!historyOpen || !dialog) return;
+    dialog.showModal();
+    return () => { if (dialog.open) dialog.close(); };
+  }, [historyOpen]);
+
+  useEffect(() => {
+    const dialog = materialDialog.current;
+    if (!materialDialogOpen || !dialog) return;
+    dialog.showModal();
+    return () => { if (dialog.open) dialog.close(); };
+  }, [materialDialogOpen]);
+
+  function openAddMaterial() {
+    setError(""); setNotice(""); setStockDate(localDate()); setFormKey(key => key + 1);
+    setMaterialDialogState({ kind: "add" });
+  }
+
+  function openMaterialDetails(item: InventoryItem) {
+    setError(""); setNotice(""); setMaterialDialogState({ kind: "details", materialId: item.id });
+  }
+
+  function closeMaterialDialog() {
+    if (busy) return;
+    setMaterialDialogState(null);
+  }
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (saving.current) return;
+    if (!editing && materialDialogState?.kind !== "add") return;
     const form = new FormData(event.currentTarget);
     const values = {
       name: String(form.get("name") ?? "").trim(),
@@ -82,20 +125,21 @@ export function InventoryManager({ initialItems, initialMovements }: { initialIt
       setItems(current => (editing ? current.map(item => item.id === saved.id ? saved : item) : [...current, saved])
         .sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name)));
       if (!editing && quantity > 0) {
-        setNotice(`${saved.name} added with opening stock.`); reset();
+        setNotice(`${saved.name} added with opening stock.`); setMaterialDialogState(null);
         const result = await db.from("inventory_movements").select(movementColumns).order("movement_date", { ascending: false }).order("created_at", { ascending: false });
         if (result.error) throw new Error(`Material and opening stock were saved, but movement history could not be refreshed: ${result.error.message}`);
         setMovements(result.data as InventoryMovement[]);
         return;
       }
-      setNotice(`${saved.name} ${editing ? "updated" : "added"}.`); reset();
+      setNotice(`${saved.name} ${editing ? "updated" : "added"}.`);
+      setMaterialDialogState(editing ? { kind: "details", materialId: saved.id } : null);
     } catch (cause) { setError(message(cause)); }
     finally { saving.current = false; setBusy(false); }
   }
 
   async function saveMovement(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (saving.current || !movementTarget) return;
+    if (saving.current || !movementTarget || materialDialogState?.kind !== "movement") return;
     const form = new FormData(event.currentTarget);
     const quantity = Number(form.get("quantity"));
     const date = String(form.get("movement_date") ?? "");
@@ -113,7 +157,7 @@ export function InventoryManager({ initialItems, initialMovements }: { initialIt
         p_movement_date: date,
       });
       if (result.error) throw result.error;
-      setMovementTarget(null); setMovementKey(key => key + 1);
+      setMaterialDialogState(null); setMovementKey(key => key + 1);
       const [inventory, history] = await Promise.all([
         db.from("inventory_materials").select(columns).order("category").order("name"),
         db.from("inventory_movements").select(movementColumns).order("movement_date", { ascending: false }).order("created_at", { ascending: false }),
@@ -142,6 +186,7 @@ export function InventoryManager({ initialItems, initialMovements }: { initialIt
         ? await db.rpc("restore_inventory_material", { p_material_id: item.id })
         : await db.rpc("remove_inventory_material", { p_material_id: item.id });
       if (result.error) throw result.error;
+      setMaterialDialogState(null);
       const [inventory, history] = await Promise.all([
         db.from("inventory_materials").select(columns).order("category").order("name"),
         db.from("inventory_movements").select(movementColumns).order("movement_date", { ascending: false }).order("created_at", { ascending: false }),
@@ -169,47 +214,90 @@ export function InventoryManager({ initialItems, initialMovements }: { initialIt
   const itemUnit = (id: string) => items.find(item => item.id === id)?.unit ?? "";
 
   return <section className="employee-manager">
-    <div className="employee-manager-heading"><div><h2>Material stock</h2><p>{activeItems.length} materials · {activeItems.filter(item => stockStatus(item) !== "In stock").length} need restocking. Stock-ins and deductions are saved with their dates.</p></div></div>
-    {error && <p className="employee-error" role="alert">{error}</p>}
-    {notice && <p className="employee-notice" role="status">{notice}</p>}
-    <form key={`${editing?.id ?? "new"}-${formKey}`} className="employee-form" onSubmit={save}>
-      <div className="employee-form-title">{editing ? `Edit ${editing.name}` : "Add material"}</div>
-      <fieldset disabled={busy} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
-        <div className="employee-form-fields">
-          <label>Material name *<input name="name" required maxLength={120} defaultValue={editing?.name} placeholder="e.g. Heat-resistant tape"/></label>
-          <label>Category *<select name="category" required defaultValue={editing?.category ?? "Other"}>{editing?.category && !categories.includes(editing.category) && <option value={editing.category}>{editing.category}</option>}{categories.map(value => <option key={value} value={value}>{value}</option>)}</select></label>
-          <label>Unit *<input name="unit" required maxLength={30} defaultValue={editing?.unit ?? "pcs"} placeholder="ml, meters, rolls, pcs"/></label>
-          {!editing && <label>Starting stock *<input name="quantity" type="number" required min="0" max="999999999.999" step="0.001" defaultValue="0"/></label>}
-          <label>Low-stock level *<input name="low_stock_level" type="number" required min="0" max="999999999.999" step="0.001" defaultValue={editing?.low_stock_level ?? 0}/></label>
-          {!editing && <label>Stock-in date *<input name="stock_date" type="date" required max={localDate()} value={stockDate} onChange={event => setStockDate(event.target.value)}/></label>}
-        </div>
-        {editing && <p className="employee-form-note">To change stock, record a dated stock-in or deduction below. This keeps the movement history accurate.</p>}
-        <div className="form-actions"><button className="primary-button" type="submit">{busy ? "Saving…" : editing ? "Save changes" : "Add material"}</button>{editing && <button type="button" className="secondary-button" onClick={reset}>Cancel</button>}</div>
-      </fieldset>
-    </form>
-    {movementTarget && <form key={movementKey} className="employee-form" onSubmit={saveMovement}>
-      <div className="employee-form-title">{movementType === "stock_in" ? "Record stock-in" : "Record deduction"} — {movementTarget.name}</div>
-      <fieldset disabled={busy} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
-        <div className="employee-form-fields">
-          <label>Quantity ({movementTarget.unit}) *<input name="quantity" type="number" required min="0.001" max="999999999.999" step="0.001" autoFocus/></label>
-          <label>{movementType === "stock_in" ? "Stock-in date" : "Deduction date"} *<input name="movement_date" type="date" required max={localDate()} defaultValue={localDate()}/></label>
-        </div>
-        <p className="employee-form-note">Current stock: {Number(movementTarget.quantity).toLocaleString("en-PH")} {movementTarget.unit}</p>
-        <div className="form-actions"><button className="primary-button" type="submit" disabled={busy}>{busy ? "Saving…" : movementType === "stock_in" ? "Record stock-in" : "Record deduction"}</button><button type="button" className="secondary-button" onClick={() => setMovementTarget(null)} disabled={busy}>Cancel</button></div>
-      </fieldset>
-    </form>}
+    <div className="employee-manager-heading"><div><h2>Material stock</h2><p>{activeItems.length} materials · {activeItems.filter(item => stockStatus(item) !== "In stock").length} need restocking. Stock-ins and deductions are saved with their dates.</p></div><div className="inventory-heading-actions"><button type="button" className="primary-button" aria-haspopup="dialog" aria-controls={materialDialogId} onClick={openAddMaterial}>Add material</button><button type="button" className="secondary-button inventory-history-trigger" aria-haspopup="dialog" aria-expanded={historyOpen} aria-controls={historyDialogId} onClick={() => setHistoryOpen(true)}>Stock movement history ({movements.length})</button></div></div>
+    {error && !materialDialogOpen && <p className="employee-error" role="alert">{error}</p>}
+    {notice && !materialDialogOpen && <p className="employee-notice" role="status">{notice}</p>}
     <div className="employee-form-fields">
       <label>Search materials<input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Search name or category"/></label>
       <label>Category<select value={category} onChange={event => setCategory(event.target.value)}><option value="">All categories</option>{Array.from(new Set(activeItems.map(item => item.category))).sort().map(value => <option key={value}>{value}</option>)}</select></label>
       <label><span>Stock filter</span><select value={lowOnly ? "low" : "all"} onChange={event => setLowOnly(event.target.value === "low")}><option value="all">All stock</option><option value="low">Needs restocking</option></select></label>
       <label className="inventory-archived-filter"><input type="checkbox" checked={showArchived} onChange={event => setShowArchived(event.target.checked)}/> Show archived materials</label>
     </div>
-    <SearchableList className="employee-table-wrap inventory-table-scroll" role="region" aria-label="Materials inventory, scroll to see more materials" tabIndex={0}><table><thead><tr><th>MATERIAL</th><th>CATEGORY</th><th>ON HAND</th><th>LOW-STOCK LEVEL</th><th>STATUS</th><th>ACTION</th></tr></thead>
-      <tbody>{shown.map(item => <tr key={item.id}><td><b>{item.name}</b></td><td>{item.category}</td><td>{Number(item.quantity).toLocaleString("en-PH")} {item.unit}</td><td>{Number(item.low_stock_level).toLocaleString("en-PH")} {item.unit}</td><td>{item.archived_at ? "Archived" : stockStatus(item)}</td><td><div className="inventory-actions">{item.archived_at ? <button className="secondary-button" type="button" disabled={busy} onClick={() => void removeMaterial(item)}>Restore</button> : <><button className="secondary-button" type="button" disabled={busy} onClick={() => { setEditing(item); setMovementTarget(null); setError(""); setNotice(""); }}>Edit details</button><button className="secondary-button" type="button" disabled={busy} onClick={() => { setEditing(null); setMovementTarget(item); setMovementType("stock_in"); setError(""); }}>Stock in</button><button className="secondary-button" type="button" disabled={busy || Number(item.quantity) <= 0} onClick={() => { setEditing(null); setMovementTarget(item); setMovementType("deduction"); setError(""); }}>Deduct</button><button className="secondary-button" type="button" disabled={busy} onClick={() => void removeMaterial(item)}>Delete</button></>}</div></td></tr>)}</tbody>
+    <SearchableList className="employee-table-wrap inventory-table-scroll inventory-material-list" role="region" aria-label="Materials inventory" tabIndex={0}><table><thead><tr><th>MATERIAL</th><th>CATEGORY</th><th>ON HAND</th><th>LOW-STOCK LEVEL</th><th>STATUS</th><th>ACTION</th></tr></thead>
+      <tbody>{shown.map(item => <tr key={item.id}><td data-label="Material"><b>{item.name}</b></td><td data-label="Category">{item.category}</td><td data-label="On hand">{Number(item.quantity).toLocaleString("en-PH")} {item.unit}</td><td data-label="Low-stock level">{Number(item.low_stock_level).toLocaleString("en-PH")} {item.unit}</td><td data-label="Status">{item.archived_at ? "Archived" : stockStatus(item)}</td><td data-label="Action"><button className="secondary-button" type="button" disabled={busy} aria-haspopup="dialog" aria-controls={materialDialogId} onClick={() => openMaterialDetails(item)}>View details</button></td></tr>)}</tbody>
     </table>{shown.length === 0 && <p className="empty-inline">No materials match these filters. Add a material or change your search.</p>}</SearchableList>
-    <div className="inventory-history-heading"><h3>Stock movement history</h3><p>{movements.length} recorded movement{movements.length === 1 ? "" : "s"}</p></div>
-    <SearchableList className="employee-table-wrap inventory-table-scroll" role="region" aria-label="Dated inventory stock-ins and deductions" tabIndex={0}><table><thead><tr><th>DATE</th><th>MATERIAL</th><th>MOVEMENT</th><th>SOURCE / ORDER</th><th>QUANTITY</th></tr></thead><tbody>
+    <dialog ref={materialDialog} id={materialDialogId} className="inventory-material-dialog" aria-labelledby={materialTitleId} onCancel={event => {
+      if (busy) event.preventDefault();
+      else setMaterialDialogState(null);
+    }} onClose={() => setMaterialDialogState(null)}>
+      <div className="inventory-material-heading"><h2 id={materialTitleId}>
+        {materialDialogState?.kind === "add" ? "Add material"
+          : materialDialogState?.kind === "edit" ? `Edit ${selectedMaterial?.name ?? "material"}`
+            : materialDialogState?.kind === "movement" ? `Adjust stock — ${selectedMaterial?.name ?? "material"}`
+              : `${selectedMaterial?.name ?? "Material"} details`}
+      </h2><button type="button" className="secondary-button" onClick={closeMaterialDialog} disabled={busy}>Close</button></div>
+      {error && <p className="employee-error" role="alert">{error}</p>}
+      {notice && <p className="employee-notice" role="status">{notice}</p>}
+      {materialDialogState?.kind === "details" && selectedMaterial && <>
+        <dl className="inventory-material-details">
+          <div><dt>Category</dt><dd>{selectedMaterial.category}</dd></div>
+          <div><dt>On hand</dt><dd>{Number(selectedMaterial.quantity).toLocaleString("en-PH")} {selectedMaterial.unit}</dd></div>
+          <div><dt>Low-stock level</dt><dd>{Number(selectedMaterial.low_stock_level).toLocaleString("en-PH")} {selectedMaterial.unit}</dd></div>
+          <div><dt>Status</dt><dd>{selectedMaterial.archived_at ? "Archived" : stockStatus(selectedMaterial)}</dd></div>
+          <div><dt>Unit</dt><dd>{selectedMaterial.unit}</dd></div>
+        </dl>
+        <div className="inventory-dialog-actions">
+          {selectedMaterial.archived_at
+            ? <button type="button" className="secondary-button" disabled={busy} onClick={() => void removeMaterial(selectedMaterial)}>Restore material</button>
+            : <>
+              <button type="button" className="secondary-button" disabled={busy} onClick={() => { setError(""); setNotice(""); setFormKey(key => key + 1); setMaterialDialogState({ kind: "edit", materialId: selectedMaterial.id }); }}>Edit details</button>
+              <button type="button" className="secondary-button" disabled={busy} onClick={() => { setError(""); setNotice(""); setMovementKey(key => key + 1); setMaterialDialogState({ kind: "movement", materialId: selectedMaterial.id, movementType: "stock_in" }); }}>Adjust Stock</button>
+              <button type="button" className="secondary-button inventory-delete-button" disabled={busy} onClick={() => void removeMaterial(selectedMaterial)}>Delete</button>
+            </>}
+        </div>
+      </>}
+      {(editing || materialDialogState?.kind === "add") && <form key={`${editing?.id ?? "new"}-${formKey}`} className="employee-form inventory-dialog-form" onSubmit={save}>
+        <div className="employee-form-title">{editing ? `Edit ${editing.name}` : "Add material"}</div>
+        <fieldset disabled={busy} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+          <div className="employee-form-fields">
+            <label>Material name *<input name="name" required maxLength={120} defaultValue={editing?.name} placeholder="e.g. Heat-resistant tape"/></label>
+            <label>Category *<select name="category" required defaultValue={editing?.category ?? "Other"}>{editing?.category && !categories.includes(editing.category) && <option value={editing.category}>{editing.category}</option>}{categories.map(value => <option key={value} value={value}>{value}</option>)}</select></label>
+            <label>Unit *<input name="unit" required maxLength={30} defaultValue={editing?.unit ?? "pcs"} placeholder="ml, meters, rolls, pcs"/></label>
+            {!editing && <label>Starting stock *<input name="quantity" type="number" required min="0" max="999999999.999" step="0.001" defaultValue="0"/></label>}
+            <label>Low-stock level *<input name="low_stock_level" type="number" required min="0" max="999999999.999" step="0.001" defaultValue={editing?.low_stock_level ?? 0}/></label>
+            {!editing && <label>Stock-in date *<input name="stock_date" type="date" required max={localDate()} value={stockDate} onChange={event => setStockDate(event.target.value)}/></label>}
+          </div>
+          {editing && <p className="employee-form-note">To change stock, record a dated stock-in or deduction below. This keeps the movement history accurate.</p>}
+          <div className="form-actions"><button className="primary-button" type="submit">{busy ? "Saving…" : editing ? "Save changes" : "Add material"}</button><button type="button" className="secondary-button" onClick={() => {
+            setError(""); setNotice("");
+            if (editing) setMaterialDialogState({ kind: "details", materialId: editing.id });
+            else closeMaterialDialog();
+          }} disabled={busy}>Cancel</button></div>
+        </fieldset>
+      </form>}
+      {movementTarget && <form key={movementKey} className="employee-form inventory-dialog-form" onSubmit={saveMovement}>
+        <div className="employee-form-title">Adjust stock — {movementTarget.name}</div>
+        <fieldset disabled={busy} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+          <div className="employee-form-fields">
+            <label>Adjustment type *<select name="movement_type" value={movementType} onChange={event => setMaterialDialogState({ kind: "movement", materialId: movementTarget.id, movementType: event.target.value === "deduction" ? "deduction" : "stock_in" })}><option value="stock_in">Stock-in / add</option><option value="deduction" disabled={Number(movementTarget.quantity) <= 0}>Deduct</option></select></label>
+            <label>Quantity ({movementTarget.unit}) *<input name="quantity" type="number" required min="0.001" max="999999999.999" step="0.001" autoFocus/></label>
+            <label>{movementType === "stock_in" ? "Stock-in date" : "Deduction date"} *<input name="movement_date" type="date" required max={localDate()} defaultValue={localDate()}/></label>
+          </div>
+          <p className="employee-form-note">Current stock: {Number(movementTarget.quantity).toLocaleString("en-PH")} {movementTarget.unit}</p>
+          <div className="form-actions"><button className="primary-button" type="submit" disabled={busy}>{busy ? "Saving…" : movementType === "stock_in" ? "Record stock-in" : "Record deduction"}</button><button type="button" className="secondary-button" onClick={() => { setError(""); setMaterialDialogState({ kind: "details", materialId: movementTarget.id }); }} disabled={busy}>Cancel</button></div>
+        </fieldset>
+      </form>}
+    </dialog>
+    <dialog ref={historyDialog} id={historyDialogId} className="inventory-history-dialog" aria-labelledby={historyTitleId} onCancel={() => setHistoryOpen(false)} onClose={() => setHistoryOpen(false)} onClick={event => {
+      if (event.target === event.currentTarget) {
+        const bounds = event.currentTarget.getBoundingClientRect();
+        if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) setHistoryOpen(false);
+      }
+    }}>
+      <div className="inventory-history-heading"><div><h2 id={historyTitleId}>Stock movement history</h2><p>{movements.length} recorded movement{movements.length === 1 ? "" : "s"}</p></div><button type="button" className="secondary-button" onClick={() => setHistoryOpen(false)} autoFocus>Close</button></div>
+      <SearchableList className="employee-table-wrap inventory-table-scroll" role="region" aria-label="Dated inventory stock-ins and deductions" tabIndex={0}><table><thead><tr><th>DATE</th><th>MATERIAL</th><th>MOVEMENT</th><th>SOURCE / ORDER</th><th>QUANTITY</th></tr></thead><tbody>
       {movements.map(movement => <tr key={movement.id}><td>{movement.movement_date}</td><td><b>{itemName(movement.material_id)}</b></td><td>{movement.movement_type === "stock_in" ? "Stock-in" : "Deduction"}</td><td>{movement.order_number ? `${movement.source === "order_reversal" ? "Order adjustment" : "Order"} ${movement.order_number}` : movement.source === "manual" ? "Manual" : movement.source === "order_reversal" ? "Order adjustment" : "Order deduction"}</td><td>{Number(movement.quantity).toLocaleString("en-PH")} {itemUnit(movement.material_id)}</td></tr>)}
-    </tbody></table>{movements.length === 0 && <p className="empty-inline">No stock movements have been recorded yet.</p>}</SearchableList>
+      </tbody></table>{movements.length === 0 && <p className="empty-inline">No stock movements have been recorded yet.</p>}</SearchableList>
+    </dialog>
   </section>;
 }
