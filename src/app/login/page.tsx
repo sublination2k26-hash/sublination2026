@@ -5,8 +5,8 @@ import { PasswordField } from "@/components/ui/password-field";
 import { BrandLogo } from "@/components/ui/brand-logo";
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { AlertCircle } from "lucide-react";
-import "./login-qr.css";
+import { AlertCircle, ArrowRight, LoaderCircle } from "lucide-react";
+import "./login.css";
 import { createClient, supabaseConfigured } from "@/lib/supabase/client";
 import { employeeLoginToAuthEmail } from "@/lib/auth/employee-login";
 import { watchLoginSession } from "@/lib/auth/login-session";
@@ -60,18 +60,31 @@ export default function LoginPage() {
     finally { setBusy(false); }
   }
 
-  if(checkingSession)return <main className="login-screen"><div className="login-card" role="status">Checking your session…</div></main>;
-  return <main className="login-screen"><div className="login-options"><form id="login-form" className="login-card" method="post" autoComplete="on" onSubmit={submit}>
-    <BrandLogo/><div className="section-kicker">SUBLI-NATION PRINTING SYSTEM</div><h1>Welcome back</h1>
-    <p>Sign in with your employee account to open the production workspace.</p>
-    {!supabaseConfigured && <div className="login-setup"><AlertCircle size={16}/><span>Supabase isn’t connected yet. Copy <code>.env.example</code> to <code>.env.local</code>, add your project URL and anon key, then restart the app.</span></div>}
-    {error && <div className="login-error" role="alert">{error}</div>}
-    <label htmlFor="login-username">Login ID or email<input id="login-username" name="username" type="text" required autoComplete="username" autoCapitalize="none" spellCheck={false} value={loginId} onChange={event => setLoginId(event.target.value)} placeholder="Your employee ID or email"/></label>
-    <PasswordField id="login-password" name="password" label="Password" required autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} placeholder="Your password"/>
-    <label><input type="checkbox" checked={rememberUsername} onChange={event => { setRememberUsername(event.target.checked); if (!event.target.checked) { try { localStorage.removeItem("subli.login.username.v1"); } catch {} } }}/> Remember my username on this device</label>
-    <button className="primary-button" type="submit" disabled={!supabaseConfigured || busy}>{busy ? "Signing in…" : "Sign in"}</button>
-    <Link href="/forgot-password">Forgot password?</Link>
-    <small>Use the login ID and password provided by your admin. Existing email accounts can still sign in with their email.</small>
-    <small>Allow your browser to save your login for autofill next time. You stay signed in on this browser until you sign out or your session expires.</small>
-  </form></div></main>;
+  return <main className="login-screen workspace-login">
+    <div className="workspace-login-frame">
+      <aside className="workspace-login-brand" aria-label="Subli-nation Printing Services">
+        <div className="workspace-login-identity"><BrandLogo/><div><strong>Subli-nation</strong><span>Printing Services</span></div></div>
+        <p>Production<br/>workspace</p>
+      </aside>
+      <div className="workspace-login-content">
+        {checkingSession
+          ? <div className="workspace-login-loading" role="status"><LoaderCircle className="workspace-login-spinner" size={20} aria-hidden="true"/> Checking your session…</div>
+          : <form id="login-form" className="login-card workspace-login-form" method="post" autoComplete="on" onSubmit={submit}>
+            <header><h1>Welcome back</h1><p>Sign in with your employee account.</p></header>
+            {!supabaseConfigured && <div className="login-setup"><AlertCircle size={16} aria-hidden="true"/><span>Supabase isn’t connected yet. Copy <code>.env.example</code> to <code>.env.local</code>, add your project URL and anon key, then restart the app.</span></div>}
+            {error && <div className="login-error" role="alert">{error}</div>}
+            <label htmlFor="login-username">Login ID or email<input id="login-username" name="username" type="text" required autoComplete="username" autoCapitalize="none" spellCheck={false} value={loginId} onChange={event => setLoginId(event.target.value)} placeholder="Employee ID or email"/></label>
+            <PasswordField id="login-password" name="password" label="Password" required autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} placeholder="Enter your password"/>
+            <div className="workspace-login-options">
+              <label><input type="checkbox" checked={rememberUsername} onChange={event => { setRememberUsername(event.target.checked); if (!event.target.checked) { try { localStorage.removeItem("subli.login.username.v1"); } catch {} } }}/> Remember username</label>
+              <Link href="/forgot-password">Forgot password?</Link>
+            </div>
+            <button className="primary-button" type="submit" disabled={!supabaseConfigured || busy}>
+              {busy ? "Signing in…" : "Sign in"}{busy ? <LoaderCircle className="workspace-login-spinner" size={17} aria-hidden="true"/> : <ArrowRight size={17} aria-hidden="true"/>}
+            </button>
+            <small>Need a login ID? Ask your administrator.</small>
+          </form>}
+      </div>
+    </div>
+  </main>;
 }

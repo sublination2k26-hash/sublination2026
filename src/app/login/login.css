@@ -1,0 +1,117 @@
+.workspace-login.login-screen {
+  min-height: 100dvh;
+  padding: 28px;
+  background: radial-gradient(ellipse at 18% 22%, #e0f2fe, transparent 52%), #f2f5fa;
+}
+
+.workspace-login-frame {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.07fr);
+  width: min(920px, 100%);
+  min-height: 530px;
+  overflow: hidden;
+  border: 1px solid #dce5f2;
+  border-radius: 24px;
+  background: var(--surface, #fff);
+  box-shadow: 0 24px 70px #16284c22;
+}
+
+.workspace-login-brand {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: clamp(24px, 4vw, 42px);
+  overflow: hidden;
+  color: #fff;
+  background: radial-gradient(ellipse at 100% 12%, #1649a3, transparent 64%), #101e43;
+}
+
+.workspace-login-brand::before,
+.workspace-login-brand::after {
+  position: absolute;
+  z-index: -1;
+  content: "";
+  pointer-events: none;
+}
+
+.workspace-login-brand::before {
+  inset: 0;
+  background-image: radial-gradient(#a5c8ff59 1px, transparent 1px);
+  background-size: 20px 20px;
+  mask-image: linear-gradient(125deg, transparent 28%, #000 78%);
+}
+
+.workspace-login-brand::after {
+  right: -58%;
+  bottom: -50%;
+  width: 145%;
+  aspect-ratio: 1;
+  border: 28px solid #42d5e8;
+  border-radius: 40%;
+  transform: rotate(-28deg);
+  box-shadow: 0 0 0 17px #75a9ff, 0 0 0 34px #f17ea9, 0 0 0 51px #f8cc76;
+  opacity: .7;
+}
+
+.workspace-login-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.workspace-login-identity .brand-logo { width: 54px; height: 54px; border-radius: 13px; background: white; }
+.workspace-login-identity strong, .workspace-login-identity span { display: block; }
+.workspace-login-identity strong { font: 800 20px Manrope, sans-serif; }
+.workspace-login-identity span { margin-top: 3px; color: #cbdcff; font-size: 13px; }
+.workspace-login-brand p { margin: 0 0 5px; font: 800 clamp(32px, 4vw, 48px)/1.08 Manrope, sans-serif; letter-spacing: -.045em; }
+
+.workspace-login-content { display: grid; align-items: center; padding: clamp(28px, 5vw, 60px); min-width: 0; }
+.workspace-login .workspace-login-form { width: 100%; min-width: 0; padding: 0; gap: 17px; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.workspace-login-form header { margin-bottom: 6px; }
+.workspace-login .workspace-login-form h1 { color: var(--ink, #203653); font: 800 clamp(30px, 4vw, 40px)/1.1 Manrope, sans-serif; letter-spacing: -.04em; }
+.workspace-login-form header p { margin: 10px 0 0; color: var(--muted, #52647a); font-size: 15px; }
+.workspace-login .workspace-login-form label { color: var(--ink, #203653); }
+.workspace-login-form .password-field { width: 100%; }
+.workspace-login-form :is(.login-setup, .login-error) { width: 100%; padding: 12px; border-radius: 8px; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
+.workspace-login-form .login-setup { display: flex; align-items: flex-start; gap: 8px; background: #fcf1dc; color: #6e440d; }
+.workspace-login-form .login-setup svg { flex: none; }
+.workspace-login-form .login-error { background: #fde8e7; color: #8f2827; }
+.workspace-login .workspace-login-form input:not([type="checkbox"]) {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid var(--line, #dce5f2);
+  border-radius: 9px;
+  background: var(--bg, #f6f8fc);
+  color: var(--ink, #203653);
+  font-size: 16px;
+}
+
+.workspace-login-form :is(input, button, a):focus-visible { outline: 2px solid #4285f4; outline-offset: 2px; }
+.workspace-login-options { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; width: 100%; font-size: 13px; }
+.workspace-login .workspace-login-options label { flex-direction: row; align-items: center; gap: 7px; width: auto; cursor: pointer; }
+.workspace-login .workspace-login-options input { min-height: 0; width: 16px; height: 16px; margin: 0; accent-color: #2563eb; }
+.workspace-login-options a { color: #245cc2; font-weight: 700; text-decoration: none; }
+.workspace-login-options a:hover { text-decoration: underline; }
+.workspace-login .workspace-login-form .primary-button { min-height: 48px; border-radius: 9px; gap: 10px; font-weight: 700; }
+.workspace-login .workspace-login-form .primary-button:disabled { opacity: .65; cursor: default; }
+.workspace-login .workspace-login-form > small { align-self: center; color: var(--muted, #52647a); text-align: center; font-size: 12px; }
+.workspace-login-loading { display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--muted, #52647a); }
+@media (prefers-reduced-motion: no-preference) {
+  .workspace-login-spinner { animation: workspace-login-spin 900ms linear infinite; }
+}
+@keyframes workspace-login-spin { to { transform: rotate(360deg); } }
+
+html[data-theme="dark"] .workspace-login.login-screen { background: radial-gradient(ellipse at 20% 15%, #24395e, transparent 58%), #111a2b; }
+html[data-theme="dark"] .workspace-login-frame { border-color: var(--line, #32415a); }
+html[data-theme="dark"] .workspace-login-options a { color: #93c5fd; }
+
+@media (max-width: 680px) {
+  .workspace-login.login-screen { padding: 16px; }
+  .workspace-login-frame { grid-template-columns: minmax(0, 1fr); width: min(440px, 100%); min-height: 0; border-radius: 18px; }
+  .workspace-login-brand { min-height: 96px; justify-content: center; padding: 18px 22px; }
+  .workspace-login-brand p { display: none; }
+  .workspace-login-brand::after { right: -52%; bottom: -205%; }
+  .workspace-login-content { min-height: 350px; padding: 24px; }
+}
