@@ -38,6 +38,14 @@
 
 .app-alert-dialog-actions .primary-button {
   justify-content: center;
+  min-width: 104px;
+  min-height: 44px;
+  height: auto;
+  padding: 0 14px;
+  color: #fff;
+  font-size: 14px;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .app-alert-dialog button:focus-visible {

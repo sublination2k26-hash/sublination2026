@@ -19,11 +19,15 @@ export function downloadPayslip(
     `Employee: ${slip.employee_name}`,
     `Position / role: ${role}`,
     `Pay period: ${slip.period_start} to ${slip.period_end}`,
+    ...(Number(slip.artist_layout_count) > 0
+      ? [`Artist layouts: ${slip.artist_layout_count} × ${money(Number(slip.artist_layout_unit_rate))}`]
+      : []),
     "", "EARNINGS / DEDUCTIONS (PHP)",
   ];
   let y = 195;
   for (const row of rows) { ctx.fillText(row, 90, y, 1060); y += 48; }
   for (const [key, label] of Object.entries(labels)) {
+    if (key === "artist_layout_pay" && Number(slip.artist_layout_count) === 0) continue;
     ctx.fillText(label, 90, y); ctx.textAlign = "right";
     ctx.fillText(money(Number(slip[key])), 1150, y); ctx.textAlign = "left"; y += 52;
   }

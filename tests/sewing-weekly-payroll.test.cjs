@@ -29,6 +29,10 @@ test('weekly sewing encodings retain excess warnings, selected rates and one app
  await db.exec('grant select,insert,update,delete on all tables in schema public to authenticated;grant usage,select on all sequences in schema public to authenticated;');
  const as=async n=>{await db.exec('reset role');await db.query("select set_config('test.uid',$1,false)",[id(n)]);await db.exec('set role authenticated');};
  await migration(files.find(name=>name.endsWith('_sewing_encoding_weekly_payroll.sql')));
+ await db.exec('alter table production_tasks add column if not exists started_by uuid references profiles(id),add column if not exists completed_by uuid references profiles(id);');
+ await migration(files.find(name=>name.endsWith('_artist_layout_payroll_reports.sql')));
+ await migration(files.find(name=>name.endsWith('_delete_draft_payroll_runs.sql')));
+ await migration(files.find(name=>name.endsWith('_combined_artist_payroll.sql')));
  await as(1);
  const customer=(await db.query("insert into customers(full_name) values('Team') returning id")).rows[0].id;
  const order=(await db.query('insert into orders(customer_id) values($1) returning id',[customer])).rows[0].id;
@@ -79,6 +83,10 @@ test('weekly sewing encodings retain excess warnings, selected rates and one app
  await db.query('select approve_payroll_run($1)',[run]);
  await db.query('select mark_payroll_run_paid($1)',[run]);
  assert.equal((await db.query('select status from payroll_runs where id=$1',[run])).rows[0].status,'paid');
+ const sewingSlips=(await db.query('select production_pay,net_pay from employee_payslips where payroll_run_id=$1',[run])).rows;
+ assert.equal(sewingSlips.length,2);
+ assert.equal(sewingSlips.reduce((sum,slip)=>sum+Number(slip.production_pay),0),2000);
+ assert.equal(sewingSlips.reduce((sum,slip)=>sum+Number(slip.net_pay),0),2000);
  // Regular pricing, void history, and missing promo rates on a fresh job.
  const order2=(await db.query('insert into orders(customer_id) values($1) returning id',[customer])).rows[0].id;
  const item2=(await db.query("insert into order_items(order_id,product_name,quantity,unit_price,customization) values($1,'Jersey',1,300,'{\"garment\":\"Jersey\"}') returning id",[order2])).rows[0].id;
@@ -101,4 +109,46 @@ test('weekly sewing encodings retain excess warnings, selected rates and one app
  await as(5);await assert.rejects(db.query("select encode_sewing_output($1,$2,1,'promo',$3,'No promo configured')",[id(97),id(84),today]),/promo price/);
  await as(5);assert.equal((await db.query('select * from sewing_encodings')).rows.length,4,'sewer cannot read another sewer encodings');
  await assert.rejects(db.query("select pause_sewing_computation($1,true,'Bypass')",[sewing]),/Only admin/);
+
+ await as(1);
+ const artist=id(20);
+ await db.exec('reset role');
+ await db.query('insert into auth.users values($1)',[artist]);
+ await db.exec('set role authenticated');
+ await db.query("insert into profiles(id,full_name,role) values($1,'Layout Artist','artist')",[artist]);
+ await db.query("insert into employee_compensation(employee_id,pay_frequency,base_rate) values($1,'daily',650)",[artist]);
+ const addLayout=async(n,date)=>{
+  const layoutOrder=(await db.query('insert into orders(customer_id) values($1) returning id',[customer])).rows[0].id;
+  const layoutItem=(await db.query("insert into order_items(order_id,product_name,quantity,unit_price) values($1,'Jersey',20,300) returning id",[layoutOrder])).rows[0].id;
+  return (await db.query("insert into production_tasks(order_id,order_item_id,stage,status,completed_by,completed_at) values($1,$2,'layout','completed',$3,$4) returning id",[layoutOrder,layoutItem,artist,`${date}T01:00:00Z`])).rows[0].id;
+ };
+ const layoutTasks=[await addLayout(1,'2040-06-05'),await addLayout(2,'2040-06-05')];
+ const combinedRun=(await db.query("select create_payroll_run('2040-06-01','2040-06-15') as id")).rows[0].id;
+ let combinedLine=(await db.query('select * from payroll_lines where payroll_run_id=$1 and employee_id=$2',[combinedRun,artist])).rows[0];
+ assert.equal(combinedLine.artist_layout_count,2);
+ assert.equal(Number(combinedLine.artist_layout_unit_rate),150);
+ assert.equal(Number(combinedLine.artist_layout_pay),300);
+ assert.equal(Number(combinedLine.total_pay),300);
+ assert.equal((await db.query('select count(*)::int as n from payroll_run_artist_layout_items where payroll_run_id=$1',[combinedRun])).rows[0].n,2);
+ assert.equal((await db.query('select status from payroll_runs where id=$1',[combinedRun])).rows[0].status,'draft');
+ await assert.rejects(db.query("select create_artist_layout_payroll($1,'2040-06-01','2040-06-15',150,$2::uuid[])",[artist,layoutTasks]),/No unrecorded completed layouts/);
+ await db.query('update payroll_lines set adjustments=25 where id=$1',[combinedLine.id]);
+ assert.equal(Number((await db.query('select total_pay from payroll_lines where id=$1',[combinedLine.id])).rows[0].total_pay),325);
+ await db.query('select approve_payroll_run($1)',[combinedRun]);
+ const combinedSlip=(await db.query('select * from employee_payslips where payroll_run_id=$1 and employee_id=$2',[combinedRun,artist])).rows[0];
+ assert.equal(combinedSlip.artist_layout_count,2);
+ assert.equal(Number(combinedSlip.artist_layout_unit_rate),150);
+ assert.equal(Number(combinedSlip.artist_layout_pay),300);
+ assert.equal(Number(combinedSlip.net_pay),325);
+ await db.query('select mark_payroll_run_paid($1)',[combinedRun]);
+ const issueDate=(await db.query('select current_date::text as day')).rows[0].day;
+ await assert.rejects(db.query("select issue_employee_payslip($1,$2,'2040-06-01','2040-06-15',$3::jsonb)",[artist,issueDate,JSON.stringify({basic_pay:100,overtime_pay:0,bonus:0,backpay:0,sss:0,philhealth:0,pagibig:0,other_deductions:0})]),/already in a payroll run/);
+
+ await addLayout(3,'2040-06-20');
+ const draftRun=(await db.query("select create_payroll_run('2040-06-16','2040-06-30') as id")).rows[0].id;
+ assert.equal((await db.query('select count(*)::int as n from payroll_run_artist_layout_items where payroll_run_id=$1',[draftRun])).rows[0].n,1);
+ await db.query('select delete_draft_payroll_run($1)',[draftRun]);
+ assert.equal((await db.query('select count(*)::int as n from payroll_run_artist_layout_items where payroll_run_id=$1',[draftRun])).rows[0].n,0);
+ const recreatedRun=(await db.query("select create_payroll_run('2040-06-16','2040-06-30') as id")).rows[0].id;
+ assert.equal((await db.query('select count(*)::int as n from payroll_run_artist_layout_items where payroll_run_id=$1',[recreatedRun])).rows[0].n,1);
 });

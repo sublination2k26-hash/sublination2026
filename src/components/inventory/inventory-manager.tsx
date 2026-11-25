@@ -210,6 +210,14 @@ export function InventoryManager({ initialItems, initialMovements }: { initialIt
     && (!category || item.category === category)
     && (!lowOnly || (!item.archived_at && stockStatus(item) !== "In stock"))
     && `${item.name} ${item.category}`.toLowerCase().includes(query.toLowerCase()));
+  const lastMovementByMaterial = new Map<string, InventoryMovement>();
+  for (const movement of movements) {
+    const current = lastMovementByMaterial.get(movement.material_id);
+    if (!current || movement.movement_date > current.movement_date
+      || movement.movement_date === current.movement_date && movement.created_at > current.created_at) {
+      lastMovementByMaterial.set(movement.material_id, movement);
+    }
+  }
   const itemName = (id: string) => items.find(item => item.id === id)?.name ?? "Deleted material";
   const itemUnit = (id: string) => items.find(item => item.id === id)?.unit ?? "";
 
@@ -223,8 +231,11 @@ export function InventoryManager({ initialItems, initialMovements }: { initialIt
       <label><span>Stock filter</span><select value={lowOnly ? "low" : "all"} onChange={event => setLowOnly(event.target.value === "low")}><option value="all">All stock</option><option value="low">Needs restocking</option></select></label>
       <label className="inventory-archived-filter"><input type="checkbox" checked={showArchived} onChange={event => setShowArchived(event.target.checked)}/> Show archived materials</label>
     </div>
-    <SearchableList className="employee-table-wrap inventory-table-scroll inventory-material-list" role="region" aria-label="Materials inventory" tabIndex={0}><table><thead><tr><th>MATERIAL</th><th>CATEGORY</th><th>ON HAND</th><th>LOW-STOCK LEVEL</th><th>STATUS</th><th>ACTION</th></tr></thead>
-      <tbody>{shown.map(item => <tr key={item.id}><td data-label="Material"><b>{item.name}</b></td><td data-label="Category">{item.category}</td><td data-label="On hand">{Number(item.quantity).toLocaleString("en-PH")} {item.unit}</td><td data-label="Low-stock level">{Number(item.low_stock_level).toLocaleString("en-PH")} {item.unit}</td><td data-label="Status">{item.archived_at ? "Archived" : stockStatus(item)}</td><td data-label="Action"><button className="secondary-button" type="button" disabled={busy} aria-haspopup="dialog" aria-controls={materialDialogId} onClick={() => openMaterialDetails(item)}>View details</button></td></tr>)}</tbody>
+    <SearchableList className="employee-table-wrap inventory-table-scroll inventory-material-list" role="region" aria-label="Materials inventory" tabIndex={0}><table><thead><tr><th>MATERIAL</th><th>CATEGORY</th><th>AVAILABLE STOCK</th><th>DATE</th><th>LOW-STOCK LEVEL</th><th>STATUS</th><th>ACTION</th></tr></thead>
+      <tbody>{shown.map(item => {
+        const lastMovement = lastMovementByMaterial.get(item.id);
+        return <tr key={item.id}><td data-label="Material"><b>{item.name}</b></td><td data-label="Category">{item.category}</td><td data-label="Available stock">{Number(item.quantity).toLocaleString("en-PH")} {item.unit}</td><td data-label="Date">{lastMovement ? <span className="inventory-last-movement"><time dateTime={lastMovement.movement_date}>{lastMovement.movement_date}</time><small>{lastMovement.movement_type === "stock_in" ? "Stock-in" : "Deduction"}</small></span> : "No recorded movement"}</td><td data-label="Low-stock level">{Number(item.low_stock_level).toLocaleString("en-PH")} {item.unit}</td><td data-label="Status">{item.archived_at ? "Archived" : stockStatus(item)}</td><td data-label="Action"><button className="secondary-button" type="button" disabled={busy} aria-haspopup="dialog" aria-controls={materialDialogId} onClick={() => openMaterialDetails(item)}>View details</button></td></tr>;
+      })}</tbody>
     </table>{shown.length === 0 && <p className="empty-inline">No materials match these filters. Add a material or change your search.</p>}</SearchableList>
     <dialog ref={materialDialog} id={materialDialogId} className="inventory-material-dialog" aria-labelledby={materialTitleId} onCancel={event => {
       if (busy) event.preventDefault();
@@ -241,7 +252,7 @@ export function InventoryManager({ initialItems, initialMovements }: { initialIt
       {materialDialogState?.kind === "details" && selectedMaterial && <>
         <dl className="inventory-material-details">
           <div><dt>Category</dt><dd>{selectedMaterial.category}</dd></div>
-          <div><dt>On hand</dt><dd>{Number(selectedMaterial.quantity).toLocaleString("en-PH")} {selectedMaterial.unit}</dd></div>
+          <div><dt>Available stock</dt><dd>{Number(selectedMaterial.quantity).toLocaleString("en-PH")} {selectedMaterial.unit}</dd></div>
           <div><dt>Low-stock level</dt><dd>{Number(selectedMaterial.low_stock_level).toLocaleString("en-PH")} {selectedMaterial.unit}</dd></div>
           <div><dt>Status</dt><dd>{selectedMaterial.archived_at ? "Archived" : stockStatus(selectedMaterial)}</dd></div>
           <div><dt>Unit</dt><dd>{selectedMaterial.unit}</dd></div>
@@ -261,7 +272,7 @@ export function InventoryManager({ initialItems, initialMovements }: { initialIt
         <fieldset disabled={busy} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
           <div className="employee-form-fields">
             <label>Material name *<input name="name" required maxLength={120} defaultValue={editing?.name} placeholder="e.g. Heat-resistant tape"/></label>
-            <label>Category *<select name="category" required defaultValue={editing?.category ?? "Other"}>{editing?.category && !categories.includes(editing.category) && <option value={editing.category}>{editing.category}</option>}{categories.map(value => <option key={value} value={value}>{value}</option>)}</select></label>
+            <label>Category *<select name="category" required defaultValue={editing?.category ?? ""}><option value="" disabled>Category</option>{editing?.category && !categories.includes(editing.category) && <option value={editing.category}>{editing.category}</option>}{categories.map(value => <option key={value} value={value}>{value}</option>)}</select></label>
             <label>Unit *<input name="unit" required maxLength={30} defaultValue={editing?.unit ?? "pcs"} placeholder="ml, meters, rolls, pcs"/></label>
             {!editing && <label>Starting stock *<input name="quantity" type="number" required min="0" max="999999999.999" step="0.001" defaultValue="0"/></label>}
             <label>Low-stock level *<input name="low_stock_level" type="number" required min="0" max="999999999.999" step="0.001" defaultValue={editing?.low_stock_level ?? 0}/></label>

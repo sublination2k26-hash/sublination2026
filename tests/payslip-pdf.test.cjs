@@ -26,12 +26,13 @@ test('payslip PDF downloads a valid cross-reference structure and renders saved 
     } },
   };
   vm.runInNewContext(source, context);
-  context.exports.downloadPayslip({payslip_no:7,employee_name:'José Dela Peña',issue_date:'2026-10-28',period_start:'2026-10-01',period_end:'2026-10-15',basic_pay:500,sss:20,net_pay:480}, {basic_pay:'Basic pay',sss:'SSS'}, 'Artist');
+  context.exports.downloadPayslip({payslip_no:7,employee_name:'José Dela Peña',issue_date:'2026-10-28',period_start:'2026-10-01',period_end:'2026-10-15',basic_pay:500,production_pay:20,artist_layout_count:2,artist_layout_unit_rate:150,artist_layout_pay:300,sss:20,net_pay:800}, {basic_pay:'Basic pay',production_pay:'Production pay',artist_layout_pay:'Artist layout pay',sss:'SSS'}, 'Artist');
   assert.ok(clicked);
   assert.equal(link.download, 'PS-007.pdf');
   assert.equal(blob.type, 'application/pdf');
   assert.ok(rendered.includes('Employee: José Dela Peña'));
-  assert.ok(rendered.includes('NET PAY: ₱480.00'));
+  assert.ok(rendered.includes('Artist layouts: 2 × ₱150.00'));
+  assert.ok(rendered.includes('NET PAY: ₱800.00'));
   const pdf = Buffer.from(await blob.arrayBuffer()).toString('latin1');
   assert.ok(pdf.startsWith('%PDF-1.4'));
   const xrefOffset = Number(pdf.match(/startxref\n(\d+)/)[1]);

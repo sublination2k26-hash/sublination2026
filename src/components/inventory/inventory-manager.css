@@ -25,6 +25,21 @@
   gap: 6px;
 }
 
+.employee-table-wrap.inventory-material-list table {
+  min-width: 820px;
+}
+
+.inventory-last-movement {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.inventory-last-movement small {
+  color: var(--muted, #667085);
+  font-size: 11px;
+}
+
 .inventory-material-dialog {
   position: fixed;
   inset: 0;

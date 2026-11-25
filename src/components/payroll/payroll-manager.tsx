@@ -10,8 +10,9 @@ import { SssSettings } from "./sss-settings";
 import { OvertimeSettings } from "./overtime-settings";
 import { ArtistWorkTracking } from "./artist-work-tracking";
 import { useEffect, useId, useMemo, useState } from "react";
-import { Check, LoaderCircle, Plus, RefreshCw, Save, X } from "lucide-react";
+import { Check, LoaderCircle, Plus, RefreshCw, Save, Trash2, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useAppDialogs } from "@/components/ui/app-dialog-provider";
 import { readAllRows } from "@/lib/workspace-loading";
 import { workPayDisplay } from "@/lib/work-pay-display";
 import "./payroll-workspace.css";
@@ -22,7 +23,7 @@ type Employee = { id:string; full_name:string; role:AppRole; active:boolean };
 type Compensation = { employee_id:string; salary_basis:"fixed"|"piece"|"combined"; pay_frequency:"daily"|"weekly"|"semi_monthly"|"monthly"; base_rate:number; piece_rate:number };
 type WorkRecord = { assignment: {pricing_mode:string} | null; sewing_assignment_id:string|null; id:string; employee_id:string; role:AppRole; order_id:string|null; task_id:string|null; activity:string; quantity:number; unit_rate:number; work_date:string; started_at:string|null; completed_at:string|null; status:string; is_rework:boolean; pay_eligible:boolean; rework_reason:string|null; payroll_run_id:string|null; notes:string|null };
 type Run = { id:string; period_start:string; period_end:string; status:"draft"|"approved"|"paid"; created_at:string };
-type Line = { id:string; payroll_run_id:string; employee_id:string; role:AppRole; salary_basis:string; pay_frequency:string; base_pay:number; approved_units:number; production_pay:number; attendance_hours:number; overtime_hours:number; overtime_rate:number; overtime_pay:number; overtime_note:string; sss_deduction:number; sss_note:string; adjustments:number; adjustment_note:string|null; cash_advance:number; cash_advance_note:string|null; total_pay:number };
+type Line = { id:string; payroll_run_id:string; employee_id:string; role:AppRole; salary_basis:string; pay_frequency:string; base_pay:number; approved_units:number; production_pay:number; artist_layout_count:number; artist_layout_unit_rate:number; artist_layout_pay:number; attendance_hours:number; overtime_hours:number; overtime_rate:number; overtime_pay:number; overtime_note:string; sss_deduction:number; sss_note:string; adjustments:number; adjustment_note:string|null; cash_advance:number; cash_advance_note:string|null; total_pay:number };
 const roleNames:Record<string,string>={admin:"Admin / Owner",front_desk:"Front Desk",artist:"Artist",printing:"Printer",heat_press:"Heat press operator",cutter:"Cutter",sewer:"Sewer",qc:"Quality control"};
 const basisNames:Record<string,string>={fixed:"Fixed salary",piece:"Per approved output",combined:"Fixed + output"};
 const frequencyNames:Record<string,string>={daily:"Daily",weekly:"Weekly",semi_monthly:"Twice monthly",monthly:"Monthly"};
@@ -30,17 +31,19 @@ const peso=(value:number)=>`₱${Number(value||0).toLocaleString("en-PH",{minimu
 const today=()=>new Date().toLocaleDateString("en-CA",{timeZone:"Asia/Manila"});
 
 const payrollViews = [
-  { id: "sewing", label: "Sewing & payroll", help: "Monitor sewer output and pay, review regular/promo encodings, and prepare payroll for any selected cutoff." },
-  { id: "artist", label: "Artist pay & monitoring", help: "Review completed artist layouts, edit the layout price and save printable payroll records. Default: ₱150 per completed layout." },
-  { id: "records", label: "Payroll records", help: "Add employee pay for a cutoff, or find and download a saved payslip." },
-  { id: "work", label: "Work review", help: "Review sewer assignment pay before preparing pay." },
-  { id: "rates", label: "Sewing rates", help: "Set fixed pay and prices per piece for sewing employees." },
-  { id: "deductions", label: "Adjustments & advances", help: "Manage overtime, SSS and cash advances for a selected payroll run." },
-  { id: "runs", label: "Payroll runs", help: "Prepare and approve calculated payroll runs, or view earlier periods." },
+  { id: "overview", group: "START", label: "Start here", help: "Choose the payroll path that matches how the employee is paid." },
+  { id: "runs", group: "PAY & RECORDS", label: "Payroll runs", help: "Calculate attendance, artist layout, and eligible sewing pay together; approve to create combined payslips, then mark paid." },
+  { id: "artist", group: "PAY & RECORDS", label: "Artist layouts", help: "Review completed layouts and the rate that will be included automatically in payroll runs." },
+  { id: "records", group: "PAY & RECORDS", label: "Payslips", help: "Review generated payroll-run payslips and issue manual payslips only when pay is not already in a run." },
+  { id: "sewing", group: "SEWING", label: "Sewing monitor", help: "Monitor sewer activity and pay, including regular or promo assignments." },
+  { id: "work", group: "SEWING", label: "Sewing work review", help: "Approve eligible sewing output before creating a payroll run." },
+  { id: "rates", group: "SEWING", label: "Sewing pay settings", help: "Set sewing base pay, piece rates, and shared garment prices." },
+  { id: "deductions", group: "TOOLS", label: "Adjustments", help: "Enter overtime, SSS deductions, and cash advance recoveries on a draft payroll." },
 ] as const;
 
 export function PayrollManager(){
-  const [view,setView]=useState<typeof payrollViews[number]["id"]>("records");
+  const [view,setView]=useState<typeof payrollViews[number]["id"]>("overview");
+  const {confirm}=useAppDialogs();
   const workspaceId=useId();
   const [payslipVersion,setPayslipVersion]=useState(0);
   const db=createClient();
@@ -66,7 +69,7 @@ export function PayrollManager(){
     setLines([]);
     setAdjustments({});
     if(openRun){
-      void db.from("payroll_lines").select("id,payroll_run_id,employee_id,role,salary_basis,pay_frequency,base_pay,approved_units,production_pay,attendance_hours,overtime_hours,overtime_rate,overtime_pay,overtime_note,sss_deduction,sss_note,adjustments,adjustment_note,cash_advance,cash_advance_note,total_pay").eq("payroll_run_id",openRun).then(({data,error})=>{
+      void db.from("payroll_lines").select("id,payroll_run_id,employee_id,role,salary_basis,pay_frequency,base_pay,approved_units,production_pay,artist_layout_count,artist_layout_unit_rate,artist_layout_pay,attendance_hours,overtime_hours,overtime_rate,overtime_pay,overtime_note,sss_deduction,sss_note,adjustments,adjustment_note,cash_advance,cash_advance_note,total_pay").eq("payroll_run_id",openRun).then(({data,error})=>{
         if(!active)return;
         if(error)setError(error.message);
         else setLines((data??[]) as Line[]);
@@ -91,8 +94,21 @@ export function PayrollManager(){
     }
     setNotice(`Work record ${status}.`);await load();
   }catch(reason){fail(reason);}finally{setBusy(false);}};
-  const createRun=async()=>{setBusy(true);setError("");try{const {data,error}=await db.rpc("create_payroll_run",{p_start:periodStart,p_end:periodEnd});if(error)throw error;setOpenRun(data);setNotice("Draft payroll created. Review earnings and adjustments before approval.");await load();}catch(reason){fail(reason);}finally{setBusy(false);}};
-  const updateRunStatus=async(run:Run,action:"approve_payroll_run"|"mark_payroll_run_paid")=>{setBusy(true);setError("");try{const {error}=await db.rpc(action,{p_run_id:run.id});if(error)throw error;setNotice(action==="approve_payroll_run"?"Payroll approved.":"Payroll marked paid.");await load();}catch(reason){fail(reason);}finally{setBusy(false);}};
+  const createRun=async()=>{setBusy(true);setError("");try{const {data,error}=await db.rpc("create_payroll_run",{p_start:periodStart,p_end:periodEnd});if(error)throw error;setOpenRun(data);  setNotice("Draft payroll created with eligible artist layouts. Review the totals; approving creates the combined payslips.");setView("runs");await load();}catch(reason){fail(reason);}finally{setBusy(false);}};
+  const updateRunStatus=async(run:Run,action:"approve_payroll_run"|"mark_payroll_run_paid")=>{setBusy(true);setError("");try{const {error}=await db.rpc(action,{p_run_id:run.id});if(error)throw error;if(action==="approve_payroll_run")setPayslipVersion(v=>v+1);setNotice(action==="approve_payroll_run"?"Payroll approved and combined payslips created.":"Payroll marked paid.");await load();}catch(reason){fail(reason);}finally{setBusy(false);}};
+  const deleteDraftRun=async(run:Run)=>{
+    if(busy||run.status!=="draft")return;
+    setBusy(true);setError("");
+    try{
+      const confirmed=await confirm(`Delete the draft payroll for ${run.period_start} to ${run.period_end}? Its payroll lines, adjustments, and cash advance reservations will be removed. Linked attendance and approved sewing work will be released for another payroll run. Approved and paid runs cannot be deleted.`,{title:"Delete draft payroll",confirmLabel:"Delete draft",variant:"danger"});
+      if(!confirmed)return;
+      const {error}=await db.rpc("delete_draft_payroll_run",{p_run_id:run.id});
+      if(error)throw error;
+      if(openRun===run.id)setOpenRun("");
+      setNotice("Draft payroll deleted. Its attendance and approved sewing work are available for another run.");
+      await load();
+    }catch(reason){fail(reason);}finally{setBusy(false);}
+  };
   const saveAdjustment=async(line:Line)=>{
     if(currentRun?.status!=="draft"||line.payroll_run_id!==openRun)return;
     const value=adjustments[line.id]??{amount:String(line.adjustments),note:line.adjustment_note??"",advance:String(line.cash_advance),advanceNote:line.cash_advance_note??"",otHours:String(line.overtime_hours??0),otRate:String(line.overtime_rate??0),otNote:line.overtime_note??""};
@@ -102,19 +118,59 @@ export function PayrollManager(){
     if(!Number.isFinite(amount)){setError("Enter a valid adjustment amount.");return;}
     setBusy(true);setError("");
     try{
-      const {error}=await db.from("payroll_lines").update({adjustments:amount,adjustment_note:value.note||null,total_pay:Number(line.base_pay)+Number(line.production_pay)+amount-advance}).eq("id",line.id).select("id").single();
+      const {error}=await db.from("payroll_lines").update({adjustments:amount,adjustment_note:value.note||null,total_pay:Number(line.base_pay)+Number(line.production_pay)+Number(line.artist_layout_pay)+Number(line.overtime_pay)+amount-advance-Number(line.sss_deduction)}).eq("id",line.id).select("id").single();
       if(error)throw error;
       setNotice("Payroll adjustment saved.");
       setLinesVersion(version=>version+1);
     }catch(reason){fail(reason);}finally{setBusy(false);}
   };
   return <div className="payroll-manager payroll-workspace">
-    <div className="payroll-workspace-heading"><div><h2>Pay employees</h2><p>Choose a section below. Start with Payroll records to enter pay without attendance.</p></div></div>
-    <nav className="payroll-view-nav" aria-label="Payroll sections">{payrollViews.map(item=><button key={item.id} type="button" aria-current={view===item.id?"page":undefined} aria-controls={`${workspaceId}-${item.id}`} onClick={()=>setView(item.id)}>{item.label}</button>)}</nav>
+    <div className="payroll-workspace-heading"><div><h2>Pay employees</h2><p>Start here to choose the right process. Avoid entering the same earnings in more than one place.</p></div></div>
+    <nav className="payroll-view-nav" aria-label="Payroll sections">{(["START","PAY & RECORDS","SEWING","TOOLS"] as const).map(group=><div className="payroll-nav-group" key={group}><span className="payroll-nav-group-label">{group}</span><div className="payroll-nav-group-items">{payrollViews.filter(item=>item.group===group).map(item=><button key={item.id} type="button" aria-current={view===item.id?"page":undefined} aria-controls={`${workspaceId}-${item.id}`} onClick={()=>setView(item.id)}>{item.label}</button>)}</div></div>)}</nav>
     <p className="payroll-view-help">{payrollViews.find(item=>item.id===view)?.help}</p>
+    <p className="payroll-mobile-hint">On a phone, swipe tables sideways to see all columns.</p>
     {error&&<div className="payroll-alert is-error" role="alert">{error}</div>}{notice&&<div className="payroll-alert" role="status"><Check size={15}/>{notice}<button onClick={()=>setNotice("")} aria-label="Dismiss"><X size={14}/></button></div>}
+    <div id={`${workspaceId}-overview`} hidden={view!=="overview"}>
+      <section className="payroll-section payroll-guide" aria-labelledby={`${workspaceId}-guide-title`}>
+        <div className="payroll-section-heading"><div><h2 id={`${workspaceId}-guide-title`}>How to process payroll</h2><p>Choose one path for each employee’s earnings and cutoff.</p></div></div>
+        <div className="payroll-guide-grid">
+          <article className="payroll-guide-card">
+            <span className="payroll-guide-step">01 · REGULAR PAY</span>
+            <h3>Start a payroll run</h3>
+            <p>For attendance-based pay and eligible approved sewing output. Approve sewing work first if you need it included.</p>
+            <div className="payroll-guide-date-fields">
+              <label>Period start<input type="date" value={periodStart} onChange={event=>setPeriodStart(event.target.value)}/></label>
+              <label>Period end<input type="date" value={periodEnd} onChange={event=>setPeriodEnd(event.target.value)}/></label>
+            </div>
+            <button type="button" className="primary-button payroll-guide-create" disabled={busy||loading||!activeEmployees.length} onClick={()=>void createRun()}><Plus size={15}/>{busy?"Creating draft…":"Create draft and review"}</button>
+            {!loading&&!activeEmployees.length&&<small className="payroll-guide-warning">No active employees are available for payroll.</small>}
+            <p className="payroll-guide-next">Next: check totals and adjustments, approve to create combined payslips, then mark paid after payment.</p>
+          </article>
+          <article className="payroll-guide-card">
+            <span className="payroll-guide-step">02 · ARTISTS</span>
+            <h3>Artist pay is combined</h3>
+            <ul><li>Daily pay is calculated from approved attendance in Payroll runs.</li><li>Eligible completed layouts are added as a separate earning at the saved per-layout rate.</li></ul>
+            <p>Review layout counts and the current rate in Artist layouts. The payroll draft snapshots the count and rate for its cutoff.</p>
+            <button type="button" className="primary-button" onClick={()=>setView("artist")}>Review Artist layouts</button>
+          </article>
+          <article className="payroll-guide-card">
+            <span className="payroll-guide-step">03 · SEWING OUTPUT</span>
+            <h3>Review sewing pay first</h3>
+            <p>Set sewing rates, review and approve eligible work, then include it in a Payroll run for the correct cutoff.</p>
+            <div className="payroll-guide-actions"><button type="button" className="secondary-button" onClick={()=>setView("rates")}>Sewing pay settings</button><button type="button" className="secondary-button" onClick={()=>setView("work")}>Sewing work review</button></div>
+          </article>
+          <article className="payroll-guide-card">
+            <span className="payroll-guide-step">04 · MANUAL PAY</span>
+            <h3>Issue a manual payslip</h3>
+            <p>Approving a payroll run creates one payslip per employee with attendance, layout, sewing, overtime, and deductions itemized. Use manual payslips only for pay outside a run.</p>
+            <button type="button" className="secondary-button" onClick={()=>setView("records")}>Open Payslips</button>
+          </article>
+        </div>
+        <p className="payroll-guide-note"><b>Before paying:</b> a draft can be reviewed and edited; approve it after checking the totals. Mark it paid only after payment is made. Creating a payslip does not transfer money.</p>
+      </section>
+    </div>
     {view==="sewing"&&<div id={`${workspaceId}-sewing`}><SewingMonitor role="admin" onUpdated={load}/></div>}
-    {view==="artist"&&<div id={`${workspaceId}-artist`}><ArtistWorkTracking onSaved={()=>setPayslipVersion(v=>v+1)}/></div>}
+    {view==="artist"&&<div id={`${workspaceId}-artist`}><ArtistWorkTracking automaticPayroll/></div>}
     <div id={`${workspaceId}-records`} hidden={view!=="records"}><PayslipManager key={payslipVersion}/></div>
     <div id={`${workspaceId}-rates`} hidden={view!=="rates"}>
     <section className="payroll-section"><div className="payroll-section-heading"><div><h2>Sewing pay settings</h2><p>Set pay rules for sewing employees.</p></div></div><div className="payroll-form-grid"><label>Employee<select value={selectedEmployee} onChange={e=>setSelectedEmployee(e.target.value)}><option value="">Choose employee</option>{activeEmployees.filter(item=>item.role==="sewer").map(item=><option key={item.id} value={item.id}>{item.full_name} · {roleNames[item.role]}</option>)}</select></label><label>Salary method<select disabled={!isSewer} value={isSewer?basis:"fixed"} onChange={e=>setBasis(e.target.value as Compensation["salary_basis"])}><option value="fixed">Fixed salary</option><option value="piece">Per approved output</option><option value="combined">Fixed + output</option></select></label><label>Pay frequency<select value={frequency} onChange={e=>setFrequency(e.target.value as Compensation["pay_frequency"])}><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="semi_monthly">Twice monthly</option><option value="monthly">Monthly</option></select></label><label>Base amount per frequency (₱)<input type="number" min="0" step="0.01" value={baseRate} onChange={e=>setBaseRate(e.target.value)} disabled={isSewer&&basis==="piece"}/></label><label>Default price per piece (₱)<input type="number" min="0" step="0.01" value={pieceRate} onChange={e=>setPieceRate(e.target.value)} disabled={!isSewer||basis==="fixed"}/></label><button className="primary-button" disabled={busy||!selectedEmployee} onClick={()=>void saveCompensation()}><Save size={14}/>Save pay settings</button></div><p className="payroll-footnote">Choose a sewing employee, set the rate, then save. Use Work review to approve output before creating a payroll run.</p><SewingGarmentRates key={selectedEmployee} employeeId={selectedEmployee} employeeName={employeeName(selectedEmployee)} salaryBasis={compByEmployee.get(selectedEmployee)?.salary_basis}/><SearchableList className="payroll-table-wrap"><table><thead><tr><th>EMPLOYEE</th><th>ROLE</th><th>METHOD</th><th>BASE</th><th>OUTPUT RATE</th></tr></thead><tbody>{activeEmployees.filter(item=>item.role==="sewer").map(item=>{const config=compByEmployee.get(item.id);return <tr key={item.id}><td><button className="payroll-link" onClick={()=>setSelectedEmployee(item.id)}>{item.full_name}</button></td><td>{roleNames[item.role]}</td><td>{config?(item.role==="sewer"?basisNames[config.salary_basis]:"Attendance"):"Not configured"}</td><td>{config?`${peso(config.base_rate)} / ${frequencyNames[config.pay_frequency]}`:"—"}</td><td>{config&&item.role==="sewer"&&config.salary_basis!=="fixed"?peso(config.piece_rate):"—"}</td></tr>})}</tbody></table></SearchableList></section>
@@ -135,9 +191,9 @@ export function PayrollManager(){
     </details>
     </div>
     <div id={`${workspaceId}-runs`} hidden={view!=="runs"}>
-    <p className="payroll-run-notice">For staff paid manually, use Payroll records. These calculated runs keep the earlier attendance rules for non-sewing employees. Avoid recording the same pay in both places.</p>
-    <section className="payroll-section"><div className="payroll-section-heading"><div><h2>Payroll periods</h2><p>Create a draft, review each line and adjustment, then approve and mark paid.</p></div></div><div className="payroll-run-create"><label>Period start<input type="date" value={periodStart} onChange={e=>setPeriodStart(e.target.value)}/></label><label>Period end<input type="date" value={periodEnd} onChange={e=>setPeriodEnd(e.target.value)}/></label><button className="primary-button" disabled={busy||!activeEmployees.length} onClick={()=>void createRun()}><Plus size={14}/>Create draft payroll</button></div><SearchableList className="payroll-table-wrap"><table><thead><tr><th>PERIOD</th><th>STATUS</th><th>CREATED</th><th>ACTION</th></tr></thead><tbody>{runs.map(run=><tr key={run.id} className={run.id===openRun?"selected-run":""}><td><button className="payroll-link" onClick={()=>setOpenRun(run.id)}>{run.period_start} — {run.period_end}</button></td><td><span className={`payroll-status ${run.status}`}>{run.status}</span></td><td>{new Date(run.created_at).toLocaleDateString("en-PH")}</td><td>{run.status==="draft"?<button className="quiet-button" disabled={busy} onClick={()=>void updateRunStatus(run,"approve_payroll_run")}>Approve payroll</button>:run.status==="approved"?<button className="quiet-button" disabled={busy} onClick={()=>void updateRunStatus(run,"mark_payroll_run_paid")}>Mark paid</button>:<span>Paid</span>}</td></tr>)}</tbody></table>{!runs.length&&!loading&&<div className="payroll-empty">No payroll periods yet.</div>}</SearchableList>
-      {currentRun&&<div className="payroll-lines"><div className="payroll-lines-heading"><p>Gross earnings (base + production + overtime): <b>{peso(lines.reduce((sum,l)=>sum+Number(l.base_pay)+Number(l.production_pay)+Number(l.overtime_pay),0))}</b> | Total deductions (SSS + cash advances): <b>{peso(lines.reduce((sum,l)=>sum+Number(l.sss_deduction)+Number(l.cash_advance),0))}</b> | Net pay: <b>{peso(lines.reduce((sum,l)=>sum+Number(l.total_pay),0))}</b></p><b>{currentRun.period_start} — {currentRun.period_end}</b><span>Pay is snapshotted for this run. Enter additional overtime hours and hourly rates per employee. Overtime and adjustments are editable while this is a draft. Cash advances and employee SSS deductions are deducted from net pay.</span></div><SearchableList className="payroll-table-wrap"><table><thead><tr><th>EMPLOYEE</th><th>BASIS</th><th>HOURS / UNITS</th><th>BASE PAY</th><th>PRODUCTION</th><th>OVERTIME</th><th>ADJUSTMENT</th><th>CASH ADVANCE</th><th>SSS DEDUCTION</th><th>NET PAY</th></tr></thead><tbody>{lines.map(line=>{const edit=adjustments[line.id]??{amount:String(line.adjustments),note:line.adjustment_note??"",advance:String(line.cash_advance),advanceNote:line.cash_advance_note??"",otHours:String(line.overtime_hours??0),otRate:String(line.overtime_rate??0),otNote:line.overtime_note??""};return <tr key={line.id}><td>{employeeName(line.employee_id)}<small>{roleNames[line.role]}</small></td><td>{basisNames[line.salary_basis]} · {frequencyNames[line.pay_frequency]}</td><td>{line.role==="sewer"?`${line.approved_units} units`:`${line.attendance_hours} hours`}</td><td>{peso(Number(line.base_pay))}</td><td>{peso(Number(line.production_pay))}</td><td>{peso(line.overtime_pay)}<small>{line.overtime_hours} hours ? {peso(line.overtime_rate)}</small><a href="#overtime-settings" onClick={()=>setView("deductions")}>Overtime settings</a></td><td>{currentRun.status==="draft"?<div className="payroll-adjust"><input aria-label="Adjustment amount" type="number" step="0.01" value={edit.amount} onChange={e=>setAdjustments(values=>({...values,[line.id]:{...edit,amount:e.target.value}}))}/><input aria-label="Adjustment note" value={edit.note} onChange={e=>setAdjustments(values=>({...values,[line.id]:{...edit,note:e.target.value}}))} placeholder="Reason"/><button disabled={busy} title="Save adjustment" onClick={()=>void saveAdjustment(line)}><Save size={13}/></button></div>:peso(Number(line.adjustments))}</td><td>{peso(Number(line.cash_advance))}<small>Includes historical deductions and selected advance recoveries.</small></td><td>{peso(Number(line.sss_deduction))}{line.sss_note&&<small>{line.sss_note}</small>}<a href="#sss-settings" onClick={()=>setView("deductions")}>SSS settings</a></td><td><b>{peso(Number(line.total_pay))}</b></td></tr>})}</tbody><tfoot><tr><td colSpan={3}>Totals for this payroll</td><td><b>{peso(lines.reduce((sum,l)=>sum+Number(l.base_pay),0))}</b></td><td><b>{peso(lines.reduce((sum,l)=>sum+Number(l.production_pay),0))}</b></td><td><b>{peso(lines.reduce((sum,l)=>sum+Number(l.overtime_pay),0))}</b></td><td><b>{peso(lines.reduce((sum,l)=>sum+Number(l.adjustments),0))}</b></td><td><b>{peso(lines.reduce((sum,l)=>sum+Number(l.cash_advance),0))}</b></td><td><b>{peso(lines.reduce((sum,l)=>sum+Number(l.sss_deduction),0))}</b></td><td><b>{peso(lines.reduce((sum,l)=>sum+Number(l.total_pay),0))}</b></td></tr></tfoot></table>{!lines.length&&!loading&&<div className="payroll-empty">This payroll has no configured employees.</div>}</SearchableList></div>}
+    <p className="payroll-run-notice">Payroll runs include attendance-based pay, eligible approved sewing output, and completed artist layouts at the saved layout rate. Approving a run creates its payslips; payment still needs to be made and confirmed manually.</p>
+    <section className="payroll-section"><div className="payroll-section-heading"><div><h2>Payroll periods</h2><p>1. Choose dates and create a draft. 2. Review totals and adjustments. 3. Approve, then mark paid after payout.</p></div></div><div className="payroll-run-create"><label>Period start<input type="date" value={periodStart} onChange={e=>setPeriodStart(e.target.value)}/></label><label>Period end<input type="date" value={periodEnd} onChange={e=>setPeriodEnd(e.target.value)}/></label><button className="primary-button" disabled={busy||!activeEmployees.length} onClick={()=>void createRun()}><Plus size={14}/>Create draft payroll</button></div><SearchableList className="payroll-table-wrap"><table><thead><tr><th>PERIOD</th><th>STATUS</th><th>CREATED</th><th>ACTION</th></tr></thead><tbody>{runs.map(run=><tr key={run.id} className={run.id===openRun?"selected-run":""}><td><button className="payroll-link" onClick={()=>setOpenRun(run.id)}>{run.period_start} — {run.period_end}</button></td><td><span className={`payroll-status ${run.status}`}>{run.status}</span></td><td>{new Date(run.created_at).toLocaleDateString("en-PH")}</td><td>{run.status==="draft"?<div className="payroll-run-actions"><button className="quiet-button" disabled={busy} onClick={()=>void updateRunStatus(run,"approve_payroll_run")}>Approve payroll</button><button type="button" className="payroll-delete-button" disabled={busy} onClick={()=>void deleteDraftRun(run)}><Trash2 size={14}/>Delete draft</button></div>:run.status==="approved"?<button className="quiet-button" disabled={busy} onClick={()=>void updateRunStatus(run,"mark_payroll_run_paid")}>Mark paid</button>:<span>Paid</span>}</td></tr>)}</tbody></table>{!runs.length&&!loading&&<div className="payroll-empty">No payroll periods yet.</div>}</SearchableList>
+      {currentRun&&<div className="payroll-lines"><div className="payroll-lines-heading"><p>Gross earnings (base + production + artist layouts + overtime): <b>{peso(lines.reduce((sum,l)=>sum+Number(l.base_pay)+Number(l.production_pay)+Number(l.artist_layout_pay)+Number(l.overtime_pay),0))}</b> | Total deductions (SSS + cash advances): <b>{peso(lines.reduce((sum,l)=>sum+Number(l.sss_deduction)+Number(l.cash_advance),0))}</b> | Net pay: <b>{peso(lines.reduce((sum,l)=>sum+Number(l.total_pay),0))}</b></p><b>{currentRun.period_start} — {currentRun.period_end}</b><span>Attendance, approved sewing, and eligible artist layouts are snapshotted for this run. Artist layout count and rate are shown separately. Overtime and adjustments can be edited while this is a draft. Approve to create the payslips; mark paid only after payment is made.</span></div><SearchableList className="payroll-table-wrap"><table><thead><tr><th>EMPLOYEE</th><th>BASIS</th><th>HOURS / UNITS</th><th>BASE PAY</th><th>PRODUCTION</th><th>ARTIST LAYOUTS</th><th>OVERTIME</th><th>ADJUSTMENT</th><th>CASH ADVANCE</th><th>SSS DEDUCTION</th><th>NET PAY</th></tr></thead><tbody>{lines.map(line=>{const edit=adjustments[line.id]??{amount:String(line.adjustments),note:line.adjustment_note??"",advance:String(line.cash_advance),advanceNote:line.cash_advance_note??"",otHours:String(line.overtime_hours??0),otRate:String(line.overtime_rate??0),otNote:line.overtime_note??""};return <tr key={line.id}><td>{employeeName(line.employee_id)}<small>{roleNames[line.role]}</small></td><td>{basisNames[line.salary_basis]} · {frequencyNames[line.pay_frequency]}</td><td>{line.role==="sewer"?`${line.approved_units} units`:`${line.attendance_hours} hours`}</td><td>{peso(Number(line.base_pay))}</td><td>{peso(Number(line.production_pay))}</td><td>{line.artist_layout_count? <>{line.artist_layout_count} × {peso(Number(line.artist_layout_unit_rate))}<small>{peso(Number(line.artist_layout_pay))}</small></> : "—"}</td><td>{peso(line.overtime_pay)}<small>{line.overtime_hours} hours × {peso(line.overtime_rate)}</small><a href="#overtime-settings" onClick={()=>setView("deductions")}>Overtime settings</a></td><td>{currentRun.status==="draft"?<div className="payroll-adjust"><input aria-label="Adjustment amount" type="number" step="0.01" value={edit.amount} onChange={e=>setAdjustments(values=>({...values,[line.id]:{...edit,amount:e.target.value}}))}/><input aria-label="Adjustment note" value={edit.note} onChange={e=>setAdjustments(values=>({...values,[line.id]:{...edit,note:e.target.value}}))} placeholder="Reason"/><button disabled={busy} title="Save adjustment" onClick={()=>void saveAdjustment(line)}><Save size={13}/></button></div>:peso(Number(line.adjustments))}</td><td>{peso(Number(line.cash_advance))}<small>Includes historical deductions and selected advance recoveries.</small></td><td>{peso(Number(line.sss_deduction))}{line.sss_note&&<small>{line.sss_note}</small>}<a href="#sss-settings" onClick={()=>setView("deductions")}>SSS settings</a></td><td><b>{peso(Number(line.total_pay))}</b></td></tr>})}</tbody><tfoot><tr><td colSpan={3}>Totals for this payroll</td><td><b>{peso(lines.reduce((sum,l)=>sum+Number(l.base_pay),0))}</b></td><td><b>{peso(lines.reduce((sum,l)=>sum+Number(l.production_pay),0))}</b></td><td><b>{lines.reduce((sum,l)=>sum+l.artist_layout_count,0)} layouts<small>{peso(lines.reduce((sum,l)=>sum+Number(l.artist_layout_pay),0))}</small></b></td><td><b>{peso(lines.reduce((sum,l)=>sum+Number(l.overtime_pay),0))}</b></td><td><b>{peso(lines.reduce((sum,l)=>sum+Number(l.adjustments),0))}</b></td><td><b>{peso(lines.reduce((sum,l)=>sum+Number(l.cash_advance),0))}</b></td><td><b>{peso(lines.reduce((sum,l)=>sum+Number(l.sss_deduction),0))}</b></td><td><b>{peso(lines.reduce((sum,l)=>sum+Number(l.total_pay),0))}</b></td></tr></tfoot></table>{!lines.length&&!loading&&<div className="payroll-empty">This payroll has no configured employees or eligible artist layouts.</div>}</SearchableList></div>}
     </section>
     {loading&&<div className="payroll-loading"><LoaderCircle className="spin" size={16}/>Loading employee and payroll records…</div>}
     </div>
@@ -145,7 +201,7 @@ export function PayrollManager(){
 }
 
 function WorkPay({record,config}:{record:WorkRecord;config?:Compensation}) {
-  if(record.role==="artist") return <div className="work-pay-display"><b>Activity record</b><small>Enter artist pay in Payroll records.</small></div>;
+  if(record.role==="artist") return <div className="work-pay-display"><b>Activity record</b><small>Layout earnings are included in Payroll runs.</small></div>;
   const pay=workPayDisplay(record,config);
   return <div className="work-pay-display">
     {pay.fixedRate!==null&&<><b>{peso(pay.fixedRate)} / {frequencyNames[pay.frequency??""]??pay.frequency}</b><small>Current fixed rate</small><small>Calculated in payroll, not per task</small></>}
